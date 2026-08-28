@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CustomCore.API.Servicios
 {
-    public class ClienteServicio(AppDbContext db)
+    public class ClienteService(AppDbContext db)
     {
         //[INICIO][28/8/2026][Rodriale][Obtiene clientes con paginación y búsqueda]
         public async Task<ResultadoPaginado<ClienteResumenDto>> ObtenerAsync(ConsultaPaginada consulta, CancellationToken cancellationToken)
@@ -80,12 +80,13 @@ namespace CustomCore.API.Servicios
         {
             var filasAfectadas = await db.Clientes
                 .Where(c => c.IdCliente == id)
+                //[INICIO][28/8/2026][Rodriale][UPDATE directo sin traer la entidad a memoria]
                 .ExecuteUpdateAsync(s => s
                     .SetProperty(c => c.NombreCompleto, request.NombreCompleto)
                     .SetProperty(c => c.Telefono, request.Telefono)
                     .SetProperty(c => c.Correo, request.Correo)
                     .SetProperty(c => c.Nit, request.Nit), cancellationToken);
-
+            //[FIN][28/8/2026][Rodriale][UPDATE directo sin traer la entidad a memoria]
             return filasAfectadas > 0;
         }
         //[FIN][28/8/2026][Rodriale][UPDATE directo sin traer la entidad a memoria]
