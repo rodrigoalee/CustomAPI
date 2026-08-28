@@ -39,6 +39,13 @@ public sealed class FacturaEncabezadoConfiguration : IEntityTypeConfiguration<Fa
             .WithMany()
             .HasForeignKey(f => f.ClienteId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        //[INICIO][28/8/2026][Rodriale][Cajero que ejecutó el cobro]
+        builder.HasOne(f => f.UsuarioCajero)
+            .WithMany()
+            .HasForeignKey(f => f.UsuarioCajeroId)
+            .OnDelete(DeleteBehavior.Restrict);
+        //[FIN][28/8/2026][Rodriale][Cajero que ejecutó el cobro]
     }
 }
 //[FIN][28/8/2026][Rodriale][Mapeo del encabezado de factura, una por orden de trabajo]

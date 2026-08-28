@@ -26,6 +26,7 @@ public class FacturaEncabezado
 
     public OrdenTrabajoEncabezado OrdenTrabajo { get; set; } = null!;
     public Cliente Cliente { get; set; } = null!;
+    public Usuario UsuarioCajero { get; set; } = null!;
     public ICollection<FacturaDetalle> Detalles { get; } = new List<FacturaDetalle>();
 }
 //[FIN][28/8/2026][Rodriale][Encabezado de factura con datos fiscales congelados y desglose de impuesto]
