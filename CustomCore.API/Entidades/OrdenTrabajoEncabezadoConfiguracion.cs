@@ -26,6 +26,18 @@ public sealed class OrdenTrabajoEncabezadoConfiguration : IEntityTypeConfigurati
             .WithMany()
             .HasForeignKey(o => o.VehiculoId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        //[INICIO][28/8/2026][Rodriale][Relaciones con Usuarios: recepción obligatoria, mecánico opcional]
+        builder.HasOne(o => o.UsuarioRecepcion)
+            .WithMany()
+            .HasForeignKey(o => o.UsuarioRecepcionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(o => o.MecanicoAsignado)
+            .WithMany()
+            .HasForeignKey(o => o.MecanicoAsignadoId)
+            .OnDelete(DeleteBehavior.Restrict);
+        //[FIN][28/8/2026][Rodriale][Relaciones con Usuarios: recepción obligatoria, mecánico opcional]
     }
 }
 //[FIN][28/8/2026][Rodriale][Mapeo del encabezado de orden de trabajo]
