@@ -29,6 +29,9 @@ namespace CustomCore.API.Data
 
 
             base.OnModelCreating(modelBuilder);
+            //[INICIO][28/8/2026][Rodriale][Esquema propio para que Supabase no exponga estas tablas por su API pública]
+            modelBuilder.HasDefaultSchema("customcore");
+            //[FIN][28/8/2026][Rodriale][Esquema propio para que Supabase no exponga estas tablas por su API pública]
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
         }
     }
