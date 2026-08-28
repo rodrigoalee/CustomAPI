@@ -16,8 +16,13 @@ namespace CustomCore.API.Data
         public DbSet<OrdenTrabajoDetalle> OrdenesTrabajoDetalle => Set<OrdenTrabajoDetalle>();
         public DbSet<FacturaEncabezado> FacturasEncabezado => Set<FacturaEncabezado>();
         public DbSet<FacturaDetalle> FacturasDetalle => Set<FacturaDetalle>();
+        public DbSet<Usuario> Usuarios => Set<Usuario>();
+        public DbSet<Rol> Roles => Set<Rol>();
+        public DbSet<Permiso> Permisos => Set<Permiso>();
+        public DbSet<UsuarioRol> UsuarioRoles => Set<UsuarioRol>();
+        public DbSet<RolPermiso> RolPermisos => Set<RolPermiso>();
+        public DbSet<LogAccion> LogsAcciones => Set<LogAccion>();
         //[FIN][27/8/2026][Rodriale][definimos las entidades para que sean públicas para poder hacer consultas]
-
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

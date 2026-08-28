@@ -17,6 +17,8 @@ public class OrdenTrabajoEncabezado
     //[FIN][28/8/2026][Rodriale][Responsables: quien recibió el vehículo y el mecánico asignado]
 
     public Vehiculo Vehiculo { get; set; } = null!;
+    public Usuario UsuarioRecepcion { get; set; } = null!;
+    public Usuario? MecanicoAsignado { get; set; }
     public ICollection<OrdenTrabajoDetalle> Detalles { get; } = new List<OrdenTrabajoDetalle>();
 }
 //[FIN][28/8/2026][Rodriale][Encabezado de la orden de trabajo con cierre y responsables]
