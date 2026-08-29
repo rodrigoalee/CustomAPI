@@ -1,4 +1,5 @@
 using CustomCore.API.Data;
+using CustomCore.API.Servicios;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,6 +15,10 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString, npgsql =>
         npgsql.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null)));
 //[FIN][27/8/2026][Rodriale][si la conexión está inestable esperamos e intentamos hasta 3 veces esperando 5 segundos entre cada intento]
+
+//[INICIO][27/8/2026][Rodriale][registramos el servicio de clientes para inyección de dependencias]
+builder.Services.AddScoped<ClienteService>();
+//[FIN][27/8/2026][Rodriale][registramos el servicio de clientes para inyección de dependencias]
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
