@@ -9,7 +9,7 @@ namespace CustomCore.API.Controllers
     [Route("api/clientes")]
     public sealed class ClientesController(ClienteService servicio) : ControllerBase
     {
-        
+       
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public Task<ResultadoPaginado<ClienteResumenDto>> Obtener(

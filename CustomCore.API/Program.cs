@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using CustomCore.API.Data;
+using CustomCore.API.Middleware;
 using CustomCore.API.Servicios;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,6 +18,15 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         npgsql.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null)));
 //[FIN][27/8/2026][Rodriale][si la conexión está inestable esperamos e intentamos hasta 3 veces esperando 5 segundos entre cada intento]
 
+builder.Services.AddProblemDetails(options =>
+    options.CustomizeProblemDetails = contexto =>
+        contexto.ProblemDetails.Extensions["traceId"] =
+            Activity.Current?.Id ?? contexto.HttpContext.TraceIdentifier);
+
+builder.Services.AddExceptionHandler<ManejadorGlobalExcepciones>();
+//[FIN][27/8/2026][Rodriale][registramos el manejador global de excepciones para que capture cualquier fallo del pipeline]
+
+
 //[INICIO][27/8/2026][Rodriale][registramos el servicio de clientes para inyección de dependencias]
 builder.Services.AddScoped<ClienteService>();
 //[FIN][27/8/2026][Rodriale][registramos el servicio de clientes para inyección de dependencias]
@@ -25,6 +36,10 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+//[INICIO][30/8/2026][Rodriale][Va de primero para que capture cualquier fallo del resto del pipeline]
+app.UseExceptionHandler();
+//[FIN][30/8/2026][Rodriale][Va de primero para que capture cualquier fallo del resto del pipeline]
 
 if (app.Environment.IsDevelopment())
 {
