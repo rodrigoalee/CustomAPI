@@ -33,16 +33,16 @@ public record VehiculoResumenDto(
 
 //[INICIO][28/8/2026][Rodriale][DTOs para crear y actualizar clientes]
 public record CrearClienteRequest(
-    [property: Required, MaxLength(150)] string NombreCompleto,
-    [property: Required, MaxLength(20)] string Telefono,
-    [property: Required, EmailAddress, MaxLength(100)] string Correo,
-    [property: MaxLength(20)] string? Nit);
+    [Required, MaxLength(150)] string NombreCompleto,
+    [Required, MaxLength(20)] string Telefono,
+    [Required, EmailAddress, MaxLength(100)] string Correo,
+    [MaxLength(20)] string? Nit);
 
 public record ActualizarClienteRequest(
-    [property: Required, MaxLength(150)] string NombreCompleto,
-    [property: Required, MaxLength(20)] string Telefono,
-    [property: Required, EmailAddress, MaxLength(100)] string Correo,
-    [property: MaxLength(20)] string? Nit);
+    [Required, MaxLength(150)] string NombreCompleto,
+    [Required, MaxLength(20)] string Telefono,
+    [Required, EmailAddress, MaxLength(100)] string Correo,
+    [MaxLength(20)] string? Nit);
 //[FIN][28/8/2026][Rodriale][DTOs para crear y actualizar clientes]
 
 //[FIN][28/8/2026][Rodriale][DTOs del módulo de clientes]
