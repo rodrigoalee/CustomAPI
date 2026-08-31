@@ -34,7 +34,13 @@ builder.Services.AddScoped<RepuestoService>();
 builder.Services.AddScoped<ServicioService>();
 builder.Services.AddScoped<CitaService>();
 builder.Services.AddScoped<OrdenTrabajoService>();
+builder.Services.AddScoped<FacturaService>();
 //[FIN][Rodriale][Registro de inyección de dependencias]
+
+//[INICIO][31/8/2026][Rodriale][Enlaza la sección "Facturacion" de appsettings con las opciones de impuesto]
+builder.Services.Configure<CustomCore.API.Configuracion.OpcionesFacturacion>(
+    builder.Configuration.GetSection(CustomCore.API.Configuracion.OpcionesFacturacion.Seccion));
+//[FIN][31/8/2026][Rodriale][Enlaza la sección "Facturacion"]
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
