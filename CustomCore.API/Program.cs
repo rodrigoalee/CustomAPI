@@ -1,4 +1,7 @@
+using System.Diagnostics;
 using CustomCore.API.Data;
+using CustomCore.API.Middleware;
+using CustomCore.API.Servicios;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,11 +18,41 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         npgsql.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null)));
 //[FIN][27/8/2026][Rodriale][si la conexión está inestable esperamos e intentamos hasta 3 veces esperando 5 segundos entre cada intento]
 
-builder.Services.AddControllers();
+builder.Services.AddProblemDetails(options =>
+    options.CustomizeProblemDetails = contexto =>
+        contexto.ProblemDetails.Extensions["traceId"] =
+            Activity.Current?.Id ?? contexto.HttpContext.TraceIdentifier);
+
+builder.Services.AddExceptionHandler<ManejadorGlobalExcepciones>();
+//[FIN][27/8/2026][Rodriale][registramos el manejador global de excepciones para que capture cualquier fallo del pipeline]
+
+
+//[INICIO][Rodriale][Registro de inyección de dependencias]
+builder.Services.AddScoped<ClienteService>();
+builder.Services.AddScoped<VehiculoService>();
+builder.Services.AddScoped<RepuestoService>();
+builder.Services.AddScoped<ServicioService>();
+builder.Services.AddScoped<CitaService>();
+builder.Services.AddScoped<OrdenTrabajoService>();
+builder.Services.AddScoped<FacturaService>();
+//[FIN][Rodriale][Registro de inyección de dependencias]
+
+//[INICIO][31/8/2026][Rodriale][Enlaza la sección "Facturacion" de appsettings con las opciones de impuesto]
+builder.Services.Configure<CustomCore.API.Configuracion.OpcionesFacturacion>(
+    builder.Configuration.GetSection(CustomCore.API.Configuracion.OpcionesFacturacion.Seccion));
+//[FIN][31/8/2026][Rodriale][Enlaza la sección "Facturacion"]
+
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+//[INICIO][30/8/2026][Rodriale][Va de primero para que capture cualquier fallo del resto del pipeline]
+app.UseExceptionHandler();
+//[FIN][30/8/2026][Rodriale][Va de primero para que capture cualquier fallo del resto del pipeline]
 
 if (app.Environment.IsDevelopment())
 {
