@@ -33,6 +33,7 @@ builder.Services.AddScoped<VehiculoService>();
 builder.Services.AddScoped<RepuestoService>();
 builder.Services.AddScoped<ServicioService>();
 builder.Services.AddScoped<CitaService>();
+builder.Services.AddScoped<OrdenTrabajoService>();
 //[FIN][Rodriale][Registro de inyección de dependencias]
 
 builder.Services.AddControllers()
