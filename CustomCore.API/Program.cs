@@ -31,6 +31,8 @@ builder.Services.AddExceptionHandler<ManejadorGlobalExcepciones>();
 builder.Services.AddScoped<ClienteService>();
 //[FIN][27/8/2026][Rodriale][registramos el servicio de clientes para inyección de dependencias]
 
+builder.Services.AddScoped<VehiculoService>();
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

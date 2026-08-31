@@ -48,29 +48,44 @@ namespace CustomCore.API.Middleware
         // [FIN][30/8/2026][Rodriale][Constructor de la clase ManejadorGlobalExcepciones que implementa IExceptionHandler]
 
         // [INICIO][30/8/2026][Rodriale][Método Traducir que traduce excepciones a códigos de estado HTTP y mensajes]
-        private static (int Estado, string Titulo, string? Detalle) Traducir(Exception exception,
-        bool esDesarrollo) =>
+        private static (int Estado, string Titulo, string? Detalle) Traducir(Exception exception, bool esDesarrollo) =>
             exception switch
             {
-                DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } pg }
-                    => (StatusCodes.Status409Conflict,
-                        "Registro duplicado",
-                        $"Ya existe un registro con ese valor. Restricción: {pg.ConstraintName}."),
-
-                DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.ForeignKeyViolation } pg }
-                    => (StatusCodes.Status409Conflict,
-                        "Referencia inválida",
-                        $"El registro apunta a otro inexistente, o está siendo referenciado y no puede eliminarse. Restricción: {pg.ConstraintName}."),
-
-                DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.CheckViolation } pg }
-                    => (StatusCodes.Status400BadRequest,
-                        "Datos inválidos",
-                        $"Los datos violan una regla de negocio de la base. Restricción: {pg.ConstraintName}."),
-
                 DbUpdateConcurrencyException
                     => (StatusCodes.Status409Conflict,
                         "Conflicto de concurrencia",
                         "El registro fue modificado por otro usuario. Vuelve a cargarlo e intenta de nuevo."),
+
+                //[INICIO][30/8/2026][Rodriale][SaveChanges envuelve el error; ExecuteUpdate/ExecuteDelete lo lanzan directo]
+                DbUpdateException { InnerException: PostgresException pg } => TraducirPostgres(pg, exception, esDesarrollo),
+                PostgresException pg => TraducirPostgres(pg, exception, esDesarrollo),
+                //[FIN][30/8/2026][Rodriale][SaveChanges envuelve el error; ExecuteUpdate/ExecuteDelete lo lanzan directo]
+
+                _ => (StatusCodes.Status500InternalServerError,
+                      "Error interno del servidor",
+                      esDesarrollo ? exception.ToString() : null)
+            };
+
+        private static (int Estado, string Titulo, string? Detalle) TraducirPostgres(
+            PostgresException pg,
+            Exception exception,
+            bool esDesarrollo) =>
+            pg.SqlState switch
+            {
+                PostgresErrorCodes.UniqueViolation
+                    => (StatusCodes.Status409Conflict,
+                        "Registro duplicado",
+                        $"Ya existe un registro con ese valor. Restricción: {pg.ConstraintName}."),
+
+                PostgresErrorCodes.ForeignKeyViolation
+                    => (StatusCodes.Status409Conflict,
+                        "Referencia inválida",
+                        $"El registro apunta a otro inexistente, o está siendo referenciado y no puede eliminarse. Restricción: {pg.ConstraintName}."),
+
+                PostgresErrorCodes.CheckViolation
+                    => (StatusCodes.Status400BadRequest,
+                        "Datos inválidos",
+                        $"Los datos violan una regla de negocio de la base. Restricción: {pg.ConstraintName}."),
 
                 _ => (StatusCodes.Status500InternalServerError,
                       "Error interno del servidor",
