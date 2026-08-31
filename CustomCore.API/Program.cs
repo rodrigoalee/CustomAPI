@@ -27,11 +27,12 @@ builder.Services.AddExceptionHandler<ManejadorGlobalExcepciones>();
 //[FIN][27/8/2026][Rodriale][registramos el manejador global de excepciones para que capture cualquier fallo del pipeline]
 
 
-//[INICIO][27/8/2026][Rodriale][registramos el servicio de clientes para inyección de dependencias]
+//[INICIO][Rodriale][Registro de inyección de dependencias]
 builder.Services.AddScoped<ClienteService>();
-//[FIN][27/8/2026][Rodriale][registramos el servicio de clientes para inyección de dependencias]
-
 builder.Services.AddScoped<VehiculoService>();
+builder.Services.AddScoped<RepuestoService>();
+builder.Services.AddScoped<ServicioService>();
+//[FIN][Rodriale][Registro de inyección de dependencias]
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
