@@ -39,6 +39,19 @@ namespace CustomCore.API.Controllers
             return CreatedAtAction(nameof(ObtenerPorId), new { id }, null);
         }
 
+        [HttpPut("{id:int}")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<ActionResult> Actualizar(
+            int id,
+            ActualizarVehiculoRequest request,
+            CancellationToken cancellationToken)
+        {
+            var actualizado = await servicio.ActualizarAsync(id, request, cancellationToken);
+            return actualizado ? NoContent() : NotFound();
+        }
+
         [HttpDelete("{id:int}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
