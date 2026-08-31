@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using CustomCore.API.Excepciones;
 using Npgsql;
 
 namespace CustomCore.API.Middleware
@@ -51,6 +52,11 @@ namespace CustomCore.API.Middleware
         private static (int Estado, string Titulo, string? Detalle) Traducir(Exception exception, bool esDesarrollo) =>
             exception switch
             {
+                //[INICIO][31/8/2026][Rodriale][el cliente puede corregir y reintentar]
+                ConflictoNegocioException conflicto
+                    => (StatusCodes.Status409Conflict, "Conflicto de negocio", conflicto.Message),
+                //[FIN][31/8/2026][Rodriale][el cliente puede corregir y reintentar]
+
                 DbUpdateConcurrencyException
                     => (StatusCodes.Status409Conflict,
                         "Conflicto de concurrencia",

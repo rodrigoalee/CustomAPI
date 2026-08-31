@@ -32,9 +32,12 @@ builder.Services.AddScoped<ClienteService>();
 builder.Services.AddScoped<VehiculoService>();
 builder.Services.AddScoped<RepuestoService>();
 builder.Services.AddScoped<ServicioService>();
+builder.Services.AddScoped<CitaService>();
 //[FIN][Rodriale][Registro de inyección de dependencias]
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
