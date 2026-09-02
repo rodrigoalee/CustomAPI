@@ -1,0 +1,8 @@
+# [INICIO][31/8/2026][Rodriale][Lo que NO se manda al build de Docker: acelera la subida y evita filtrar cosas locales]
+**/bin/
+**/obj/
+**/.vs/
+**/*.user
+.git/
+.github/
+# [FIN][31/8/2026][Rodriale][Lo que NO se manda al build de Docker]
