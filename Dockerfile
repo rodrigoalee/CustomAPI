@@ -22,6 +22,14 @@ WORKDIR /app
 # Render enruta el tráfico a este puerto. Sin esto la app escucha en el 5000 y nadie la encuentra.
 ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
+
+# .NET vigila appsettings.json con inotify para recargar la configuración en caliente.
+# En contenedores ese límite del host se agota y la app muere dentro de CreateBuilder,
+# antes de ejecutar código propio. En producción no recargamos configuración sin
+# reiniciar, así que se apaga la vigilancia y se deja el modo por sondeo como respaldo.
+ENV DOTNET_hostBuilder__reloadConfigOnChange=false
+ENV DOTNET_USE_POLLING_FILE_WATCHER=true
+
 EXPOSE 8080
 
 COPY --from=build /app/publish .
