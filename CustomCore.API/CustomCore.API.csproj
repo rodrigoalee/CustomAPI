@@ -5,6 +5,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>3b5759e0-6b34-4db1-be3f-6cc3c6142abe</UserSecretsId>
+    <!-- Sin apphost no se genera CustomCore.API.exe: la app corre con dotnet.exe, que sí está
+         firmado y Smart App Control no bloquea. El Dockerfile ya publica con /p:UseAppHost=false. -->
+    <UseAppHost>false</UseAppHost>
   </PropertyGroup>
 
   <ItemGroup>
