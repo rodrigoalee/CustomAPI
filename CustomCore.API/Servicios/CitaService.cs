@@ -1,4 +1,4 @@
-﻿//[INICIO][31/8/2026][Rodriale][agenda con validación de solapamiento]
+﻿//[INICIO][31/8/2026][Rodriale][Clase que agenda con validación de solapamiento]
 using CustomCore.API.Data;
 using CustomCore.API.Dtos;
 using CustomCore.API.Entidades;
