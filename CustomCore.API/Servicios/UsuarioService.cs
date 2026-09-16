@@ -124,6 +124,86 @@ public sealed class UsuarioService(
     }
     //[FIN][16/9/2026][jgarciad8][Creación de usuarios con contraseña BCrypt]
 
+    //[INICIO][16/9/2026][jgarciad8][Actualización de nombre y correo del usuario]
+    public async Task<bool> ActualizarAsync(
+        int id,
+        ActualizarUsuarioRequest request,
+        CancellationToken cancellationToken)
+    {
+        // Se conserva el seguimiento de EF Core para guardar los cambios.
+        var usuario = await db.Usuarios
+            .SingleOrDefaultAsync(
+                usuario => usuario.IdUsuario == id,
+                cancellationToken);
+
+        if (usuario is null)
+        {
+            return false;
+        }
+
+        var correoNormalizado = request.Correo.Trim().ToLowerInvariant();
+
+        // El correo puede conservarse, pero no pertenecer a otro usuario.
+        var correoExiste = await db.Usuarios
+            .AsNoTracking()
+            .AnyAsync(
+                otroUsuario =>
+                    otroUsuario.IdUsuario != id
+                    && otroUsuario.Correo.ToLower() == correoNormalizado,
+                cancellationToken);
+
+        if (correoExiste)
+        {
+            throw new ConflictoNegocioException(
+                "Ya existe otro usuario registrado con ese correo.");
+        }
+
+        usuario.NombreCompleto = request.NombreCompleto.Trim();
+        usuario.Correo = correoNormalizado;
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        return true;
+    }
+    //[FIN][16/9/2026][jgarciad8][Actualización de nombre y correo del usuario]
+
+    //[INICIO][16/9/2026][jgarciad8][Activación y desactivación de cuentas]
+    public async Task<bool> CambiarEstadoAsync(
+        int id,
+        bool activo,
+        int usuarioActualId,
+        CancellationToken cancellationToken)
+    {
+        // Evita que quien administra usuarios desactive su propia cuenta.
+        if (id == usuarioActualId && !activo)
+        {
+            throw new ConflictoNegocioException(
+                "No puedes desactivar tu propia cuenta.");
+        }
+
+        var usuario = await db.Usuarios
+            .SingleOrDefaultAsync(
+                usuario => usuario.IdUsuario == id,
+                cancellationToken);
+
+        if (usuario is null)
+        {
+            return false;
+        }
+
+        // Solicitar nuevamente el mismo estado no necesita otra escritura.
+        if (usuario.Activo == activo)
+        {
+            return true;
+        }
+
+        usuario.Activo = activo;
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        return true;
+    }
+    //[FIN][16/9/2026][jgarciad8][Activación y desactivación de cuentas]
 
 }
 //[FIN][16/9/2026][jgarciad8][Servicio de consulta de usuarios]

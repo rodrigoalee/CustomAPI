@@ -167,6 +167,28 @@ public static class ConfiguracionSeguridad
                         new PermisoRequirement(PermisosSistema.UsuariosCrear));
                 });
             //[FIN][16/9/2026][jgarciad8][Política para crear usuarios]
+
+            //[INICIO][16/9/2026][jgarciad8][Políticas para editar usuarios y administrar su estado]
+            opciones.AddPolicy(
+                PermisosSistema.UsuariosEditar,
+                politica =>
+                {
+                    politica.RequireAuthenticatedUser();
+
+                    politica.AddRequirements(
+                        new PermisoRequirement(PermisosSistema.UsuariosEditar));
+                });
+
+            opciones.AddPolicy(
+                PermisosSistema.UsuariosCambiarEstado,
+                politica =>
+                {
+                    politica.RequireAuthenticatedUser();
+
+                    politica.AddRequirements(
+                        new PermisoRequirement(PermisosSistema.UsuariosCambiarEstado));
+                });
+            //[FIN][16/9/2026][jgarciad8][Políticas para editar usuarios y administrar su estado]
         });
         //[FIN][16/9/2026][jgarciad8][Políticas de autorización por permisos]
 

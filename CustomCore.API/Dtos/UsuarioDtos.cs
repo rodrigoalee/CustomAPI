@@ -30,8 +30,7 @@ public record CrearUsuarioRequest(
     public IEnumerable<ValidationResult> Validate(
         ValidationContext validationContext)
     {
-        // Reutiliza la misma política del servicio BCrypt.
-        // El límite de BCrypt se mide en bytes, no solo en caracteres.
+
         if (!string.IsNullOrWhiteSpace(Password)
             && !PasswordService.EsValida(Password))
         {
@@ -43,3 +42,23 @@ public record CrearUsuarioRequest(
     }
 }
 //[FIN][16/9/2026][jgarciad8][Datos y validaciones para crear usuarios]
+
+//[INICIO][16/9/2026][jgarciad8][Datos para actualizar información del usuario]
+public record ActualizarUsuarioRequest(
+    [Required(ErrorMessage = "El nombre completo es obligatorio.")]
+    [MaxLength(150, ErrorMessage = "El nombre no puede superar los 150 caracteres.")]
+    string NombreCompleto,
+
+    [Required(ErrorMessage = "El correo es obligatorio.")]
+    [EmailAddress(ErrorMessage = "El correo debe tener un formato válido.")]
+    [MaxLength(100, ErrorMessage = "El correo no puede superar los 100 caracteres.")]
+    string Correo
+);
+//[FIN][16/9/2026][jgarciad8][Datos para actualizar información del usuario]
+
+//[INICIO][16/9/2026][jgarciad8][Datos para activar o desactivar una cuenta]
+public record CambiarEstadoUsuarioRequest(
+    [Required(ErrorMessage = "Debes indicar si el usuario estará activo.")]
+    bool? Activo
+);
+//[FIN][16/9/2026][jgarciad8][Datos para activar o desactivar una cuenta]
