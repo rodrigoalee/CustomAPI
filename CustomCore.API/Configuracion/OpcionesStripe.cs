@@ -17,6 +17,11 @@ namespace CustomCore.API.Configuracion
         public string ClaveSecreta { get; set; } = string.Empty;
 
         /// <summary>
+        /// Clave secreta del webhook de Stripe, utilizada para verificar la autenticidad de los eventos recibidos desde Stripe.
+        /// </summary>
+        public string SecretoWebhook { get; set; } = string.Empty;
+
+        /// <summary>
         /// Código de moneda en minúscula según ISO 4217, utilizado para las transacciones con Stripe. Por defecto es "gtq" (quetzal guatemalteco).
         /// </summary>
         public string Moneda { get; set; } = "gtq";
