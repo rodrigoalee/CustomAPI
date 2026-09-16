@@ -11,6 +11,7 @@ using Swashbuckle.AspNetCore.SwaggerGen;
 using CustomCore.API.Controllers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.Authorization;
 
 namespace CustomCore.API.Seguridad;
 
@@ -67,6 +68,11 @@ public static class ConfiguracionSeguridad
         servicios.AddSingleton(new JwtService(opcionesJwt, claveFirma));
         servicios.AddScoped<AuthService>();
         //[FIN][16/9/2026][jgarciad8][Registro de servicios de seguridad]
+
+        //[INICIO][16/9/2026][jgarciad8][Registro del servicio de usuarios y verificador de permisos]
+        servicios.AddScoped<UsuarioService>();
+        servicios.AddScoped<IAuthorizationHandler, PermisoHandler>();
+        //[FIN][16/9/2026][jgarciad8][Registro del servicio de usuarios y verificador de permisos]
 
         //[INICIO][16/9/2026][jgarciad8][Validación de tokens recibidos por la API]
         servicios
@@ -136,7 +142,23 @@ public static class ConfiguracionSeguridad
                 };
             });
 
-        servicios.AddAuthorization();
+        //[INICIO][16/9/2026][jgarciad8][Políticas de autorización por permisos]
+        servicios.AddAuthorization(opciones =>
+        {
+            opciones.AddPolicy(
+                PermisosSistema.UsuariosLeer,
+                politica =>
+                {
+                    politica.RequireAuthenticatedUser();
+
+                    politica.AddRequirements(
+                        new PermisoRequirement(
+                            PermisosSistema.UsuariosLeer));
+                });
+        });
+        //[FIN][16/9/2026][jgarciad8][Políticas de autorización por permisos]
+
+
         //[FIN][16/9/2026][jgarciad8][Validación de tokens recibidos por la API]
 
         //[INICIO][16/9/2026][jgarciad8][Habilitación de autenticación Bearer en Swagger]
