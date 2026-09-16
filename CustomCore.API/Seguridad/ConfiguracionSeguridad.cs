@@ -155,6 +155,18 @@ public static class ConfiguracionSeguridad
                         new PermisoRequirement(
                             PermisosSistema.UsuariosLeer));
                 });
+          
+            //[INICIO][16/9/2026][jgarciad8][Política para crear usuarios]
+            opciones.AddPolicy(
+                PermisosSistema.UsuariosCrear,
+                politica =>
+                {
+                    politica.RequireAuthenticatedUser();
+
+                    politica.AddRequirements(
+                        new PermisoRequirement(PermisosSistema.UsuariosCrear));
+                });
+            //[FIN][16/9/2026][jgarciad8][Política para crear usuarios]
         });
         //[FIN][16/9/2026][jgarciad8][Políticas de autorización por permisos]
 
