@@ -18,7 +18,7 @@ namespace CustomCore.API.Controllers
             int facturaId,
             CancellationToken cancellationToken)
             {
-            var sesion = await servicio.CrearSesionPagoAsync(facturaId, cancellationToken);
+            var sesion = await servicio.CrearSesionAsync(facturaId, cancellationToken);
             return sesion is null ? NotFound() : Ok(sesion);
         }
         //[FIN][16/9/2026][Rodriale][Genera el enlace de pago de una factura se puede mandar al cliente o abrir en caja]
