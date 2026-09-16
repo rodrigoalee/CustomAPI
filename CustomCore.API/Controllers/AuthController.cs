@@ -37,5 +37,29 @@ public sealed class AuthController(AuthService servicio) : ControllerBase
         return Ok(respuesta);
     }
     //[FIN][16/9/2026][jgarciad8][Endpoint público para iniciar sesión]
+
+    //[INICIO][16/9/2026][jgarciad8][Endpoint protegido para consultar al usuario actual]
+    [Authorize]
+    [HttpGet("me")]
+    [ProducesResponseType(typeof(UsuarioSesionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<UsuarioSesionDto>> ObtenerUsuarioActual(
+        CancellationToken cancellationToken)
+    {
+
+        if (!int.TryParse(
+            User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value,
+            out var idUsuario))
+        {
+            return Unauthorized();
+        }
+
+        var usuario = await servicio.ObtenerUsuarioActualAsync(
+            idUsuario,
+            cancellationToken);
+
+        return usuario is null ? Unauthorized() : Ok(usuario);
+    }
+    //[FIN][16/9/2026][jgarciad8][Endpoint protegido para consultar al usuario actual]
 }
 //[FIN][16/9/2026][jgarciad8][Controlador de autenticación]
