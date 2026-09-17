@@ -25,6 +25,24 @@ namespace CustomCore.API.Controllers
         }
         //[FIN][16/9/2026][Rodriale][Genera el enlace de pago de una factura]
 
+        //[INICIO][16/9/2026][Rodriale][Cobro con interfaz propia: recibe el pm_ de Stripe Elements, o pm_card_visa en pruebas desde Postman]
+        [HttpPost("facturas/{facturaId:int}/cobro")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status402PaymentRequired)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        [ProducesResponseType(StatusCodes.Status502BadGateway)]
+        public async Task<ActionResult<ResultadoCobroDto>> Cobrar(
+            int facturaId,
+            CobrarFacturaRequest request,
+            CancellationToken cancellationToken)
+        {
+            var resultado = await servicio.CobrarAsync(facturaId, request, cancellationToken);
+            return resultado is null ? NotFound() : Ok(resultado);
+        }
+        //[FIN][16/9/2026][Rodriale][Cobro con interfaz propia]
+
         //[INICIO][16/9/2026][Rodriale][Stripe llama aquí al confirmar un pago. AllowAnonymous porque Stripe no tiene JWT: cuando la Fase 6 cierre la API, este endpoint debe seguir abierto y su seguridad es la firma]
         [AllowAnonymous]
         [HttpPost("webhook")]
