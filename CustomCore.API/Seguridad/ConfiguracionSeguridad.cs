@@ -254,7 +254,41 @@ public static class ConfiguracionSeguridad
 
 
 
-
+            //[INICIO][17/9/2026][jgarciad8][Políticas de acceso a los módulos del taller]
+            foreach (var codigo in new[]
+            {
+                PermisosSistema.ClientesLeer,
+                PermisosSistema.ClientesCrear,
+                PermisosSistema.ClientesEditar,
+                PermisosSistema.VehiculosLeer,
+                PermisosSistema.VehiculosCrear,
+                PermisosSistema.VehiculosEditar,
+                PermisosSistema.VehiculosEliminar,
+                PermisosSistema.RepuestosLeer,
+                PermisosSistema.RepuestosCrear,
+                PermisosSistema.RepuestosEditar,
+                PermisosSistema.RepuestosBaja,
+                PermisosSistema.ServiciosLeer,
+                PermisosSistema.ServiciosCrear,
+                PermisosSistema.ServiciosEditar,
+                PermisosSistema.ServiciosBaja,
+                PermisosSistema.CitasLeer,
+                PermisosSistema.CitasCrear,
+                PermisosSistema.CitasEditar,
+                PermisosSistema.CitasCambiarEstado,
+                PermisosSistema.OrdenesLeer,
+                PermisosSistema.OrdenesCrear,
+                PermisosSistema.OrdenesEditar,
+                PermisosSistema.OrdenesCambiarEstado
+            })
+            {
+                opciones.AddPolicy(codigo, politica =>
+                {
+                    politica.RequireAuthenticatedUser();
+                    politica.AddRequirements(new PermisoRequirement(codigo));
+                });
+            }
+            //[FIN][17/9/2026][jgarciad8][Políticas de acceso a los módulos del taller]
 
 
 

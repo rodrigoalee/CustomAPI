@@ -31,5 +31,47 @@ public static class PermisosSistema
     public const string RolesAsignarPermisos = "roles.asignar_permisos";
     //[FIN][16/9/2026][jgarciad8][Permisos del catálogo y asignación a roles]
 
+
+
+    //[INICIO][17/9/2026][jgarciad8][Permisos de los módulos del taller]
+    public const string ClientesLeer = "clientes.leer";
+    public const string ClientesCrear = "clientes.crear";
+    public const string ClientesEditar = "clientes.editar";
+
+    public const string VehiculosLeer = "vehiculos.leer";
+    public const string VehiculosCrear = "vehiculos.crear";
+    public const string VehiculosEditar = "vehiculos.editar";
+    public const string VehiculosEliminar = "vehiculos.eliminar";
+
+    public const string RepuestosLeer = "repuestos.leer";
+    public const string RepuestosCrear = "repuestos.crear";
+    public const string RepuestosEditar = "repuestos.editar";
+    public const string RepuestosBaja = "repuestos.baja";
+
+    public const string ServiciosLeer = "servicios.leer";
+    public const string ServiciosCrear = "servicios.crear";
+    public const string ServiciosEditar = "servicios.editar";
+    public const string ServiciosBaja = "servicios.baja";
+
+    public const string CitasLeer = "citas.leer";
+    public const string CitasCrear = "citas.crear";
+    public const string CitasEditar = "citas.editar";
+    public const string CitasCambiarEstado = "citas.cambiar_estado";
+
+    public const string OrdenesLeer = "ordenes.leer";
+    public const string OrdenesCrear = "ordenes.crear";
+    public const string OrdenesEditar = "ordenes.editar";
+    public const string OrdenesCambiarEstado = "ordenes.cambiar_estado";
+    //[FIN][17/9/2026][jgarciad8][Permisos de los módulos del taller]
+
+
+
+
+
+
+
+
+
+
 }
 //[FIN][16/9/2026][jgarciad8][Códigos de permisos utilizados por el sistema]
