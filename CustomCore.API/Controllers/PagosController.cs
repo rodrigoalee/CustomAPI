@@ -3,15 +3,19 @@ using CustomCore.API.Dtos;
 using CustomCore.API.Servicios;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using CustomCore.API.Seguridad;
 
 namespace CustomCore.API.Controllers
 {
     [ApiController]
     [Route("api/pagos")]
+
+    [Authorize]
     public sealed class PagosController(PagoStripeService servicio) : ControllerBase
     {
         //[INICIO][16/9/2026][Rodriale][Genera el enlace de pago de una factura; se puede mandar al cliente o abrir en caja]
         [HttpPost("facturas/{facturaId:int}/sesion")]
+        [Authorize(Policy = PermisosSistema.PagosCrearSesion)]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -27,6 +31,7 @@ namespace CustomCore.API.Controllers
 
         //[INICIO][16/9/2026][Rodriale][Cobro con interfaz propia: recibe el pm_ de Stripe Elements, o pm_card_visa en pruebas desde Postman]
         [HttpPost("facturas/{facturaId:int}/cobro")]
+        [Authorize(Policy = PermisosSistema.PagosCobrar)]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status402PaymentRequired)]

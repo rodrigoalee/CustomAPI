@@ -290,7 +290,23 @@ public static class ConfiguracionSeguridad
             }
             //[FIN][17/9/2026][jgarciad8][Políticas de acceso a los módulos del taller]
 
-
+            //[INICIO][17/9/2026][jgarciad8][Políticas de facturación y pagos]
+            foreach (var codigo in new[]
+            {
+                    PermisosSistema.FacturasLeer,
+                    PermisosSistema.FacturasCrear,
+                    PermisosSistema.FacturasRegistrarPagoManual,
+                    PermisosSistema.PagosCrearSesion,
+                    PermisosSistema.PagosCobrar
+                })
+            {
+                opciones.AddPolicy(codigo, politica =>
+                {
+                    politica.RequireAuthenticatedUser();
+                    politica.AddRequirements(new PermisoRequirement(codigo));
+                });
+            }
+            //[FIN][17/9/2026][jgarciad8][Políticas de facturación y pagos]
 
 
         });

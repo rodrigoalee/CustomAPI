@@ -64,12 +64,13 @@ public static class PermisosSistema
     public const string OrdenesCambiarEstado = "ordenes.cambiar_estado";
     //[FIN][17/9/2026][jgarciad8][Permisos de los módulos del taller]
 
-
-
-
-
-
-
+    //[INICIO][17/9/2026][jgarciad8][Permisos de facturación y pagos]
+    public const string FacturasLeer = "facturas.leer";
+    public const string FacturasCrear = "facturas.crear";
+    public const string FacturasRegistrarPagoManual = "facturas.registrar_pago_manual";
+    public const string PagosCrearSesion = "pagos.crear_sesion";
+    public const string PagosCobrar = "pagos.cobrar";
+    //[FIN][17/9/2026][jgarciad8][Permisos de facturación y pagos]
 
 
 
