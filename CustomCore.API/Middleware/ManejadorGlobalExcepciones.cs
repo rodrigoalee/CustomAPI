@@ -67,6 +67,14 @@ namespace CustomCore.API.Middleware
                 PostgresException pg => TraducirPostgres(pg, exception, esDesarrollo),
                 //[FIN][30/8/2026][Rodriale][SaveChanges envuelve el error; ExecuteUpdate/ExecuteDelete lo lanzan directo]
 
+                //[INICIO][16/9/2026][Rodriale][Si Stripe rechaza la petición, el problema está en el proveedor o en la configuración, no en el cliente]
+                Stripe.StripeException stripe
+                    => (StatusCodes.Status502BadGateway,
+                        "Error con el proveedor de pagos",
+                        esDesarrollo ? stripe.Message : "No fue posible generar el pago en este momento."),
+                //[FIN][16/9/2026][Rodriale][Si Stripe rechaza la petición, el problema está en el proveedor o en la configuración, no en el cliente]
+
+
                 _ => (StatusCodes.Status500InternalServerError,
                       "Error interno del servidor",
                       esDesarrollo ? exception.ToString() : null)

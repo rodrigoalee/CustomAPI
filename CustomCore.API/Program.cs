@@ -37,12 +37,25 @@ builder.Services.AddScoped<ServicioService>();
 builder.Services.AddScoped<CitaService>();
 builder.Services.AddScoped<OrdenTrabajoService>();
 builder.Services.AddScoped<FacturaService>();
+builder.Services.AddScoped<PagoStripeService>();
 //[FIN][Rodriale][Registro de inyección de dependencias]
 
 //[INICIO][31/8/2026][Rodriale][Enlaza la sección "Facturacion" de appsettings con las opciones de impuesto]
 builder.Services.Configure<CustomCore.API.Configuracion.OpcionesFacturacion>(
     builder.Configuration.GetSection(CustomCore.API.Configuracion.OpcionesFacturacion.Seccion));
 //[FIN][31/8/2026][Rodriale][Enlaza la sección "Facturacion"]
+
+
+//[INICIO][16/9/2026][Rodriale][un solo cliente para toda la app. si falta la clave, la app no arranca en lugar de fallar al primer cobro]
+builder.Services.Configure<CustomCore.API.Configuracion.OpcionesStripe>(
+    builder.Configuration.GetSection(CustomCore.API.Configuracion.OpcionesStripe.Seccion));
+
+var claveStripe = builder.Configuration["Stripe:ClaveSecreta"];
+if (string.IsNullOrWhiteSpace(claveStripe))
+    throw new InvalidOperationException("Falta la clave secreta de Stripe en la configuración.");
+
+builder.Services.AddSingleton<Stripe.IStripeClient>(new Stripe.StripeClient(claveStripe));
+//[FIN][16/9/2026][Rodriale][un solo cliente para toda la app. si falta la clave, la app no arranca en lugar de fallar al primer cobro]
 
 //[INICIO][31/8/2026][Rodriale][CORS el navegador bloquea al frontend si el backend no lo autoriza explícitamente]
 const string PoliticaCors = "FrontendCustomCore";
