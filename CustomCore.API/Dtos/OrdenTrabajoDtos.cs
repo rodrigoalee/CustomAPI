@@ -93,7 +93,13 @@ namespace CustomCore.API.Dtos
     //[FIN][31/8/2026][Rodriale][Lo único editable del encabezado]
 
     //[INICIO][31/8/2026][Rodriale][Mover la orden entre "En Recepción", "En Proceso" y "Finalizado"]
-    public record CambiarEstadoOrdenRequest(EstadoOrdenTrabajo Estado);
+    //[INICIO][17/9/2026][jgarciad8][Validación de estados permitidos para órdenes]
+    public record CambiarEstadoOrdenRequest(
+        [EnumDataType(typeof(EstadoOrdenTrabajo),
+        ErrorMessage = "El estado de la orden no es válido.")]
+    EstadoOrdenTrabajo Estado);
+    //[FIN][17/9/2026][jgarciad8][Validación de estados permitidos para órdenes]
+
     //[FIN][31/8/2026][Rodriale][Mover la orden entre estados]
 }
 //[FIN][31/8/2026][Rodriale][DTOs de órdenes de trabajo]

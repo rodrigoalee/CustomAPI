@@ -109,9 +109,9 @@ app.UseExceptionHandler();
 app.UseSwagger();
 app.UseSwaggerUI();
 
-if (app.Environment.IsDevelopment())
 
 app.UseCors(PoliticaCors);
+
 
 app.UseAuthentication();
 
