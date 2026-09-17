@@ -473,6 +473,41 @@ namespace CustomCore.API.Data.Migrations
                     b.ToTable("Servicios", "customcore");
                 });
 
+            modelBuilder.Entity("CustomCore.API.Entidades.Sucursal", b =>
+                {
+                    b.Property<int>("IdSucursal")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("IdSucursal"));
+
+                    b.Property<bool>("Activo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Direccion")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Telefono")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("IdSucursal");
+
+                    b.HasIndex("Nombre")
+                        .IsUnique();
+
+                    b.ToTable("Sucursales", "customcore");
+                });
+
             modelBuilder.Entity("CustomCore.API.Entidades.Usuario", b =>
                 {
                     b.Property<int>("IdUsuario")
