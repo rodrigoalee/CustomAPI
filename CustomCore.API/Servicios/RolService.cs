@@ -177,5 +177,72 @@ public sealed class RolService(AppDbContext db)
         await db.SaveChangesAsync(ct);
         return true;
     }
+
+
+    //[INICIO][16/9/2026][jgarciad8][Consulta y asignación de permisos de un rol]
+    public async Task<List<PermisoDto>?> ObtenerPermisosAsync(
+        int rolId, CancellationToken ct)
+    {
+        if (!await db.Roles.AnyAsync(r => r.IdRol == rolId, ct))
+            return null;
+
+        return await db.RolPermisos.AsNoTracking()
+            .Where(rp => rp.RolId == rolId)
+            .OrderBy(rp => rp.Permiso.NombreCodigo)
+            .Select(rp => new PermisoDto(
+                rp.Permiso.IdPermiso,
+                rp.Permiso.NombreCodigo,
+                rp.Permiso.Descripcion,
+                rp.Permiso.Modulo))
+            .ToListAsync(ct);
+    }
+
+    public async Task<bool> CambiarPermisoAsync(
+        int rolId,
+        int permisoId,
+        int usuarioActualId,
+        bool asignar,
+        CancellationToken ct)
+    {
+        if (!await db.Roles.AnyAsync(r => r.IdRol == rolId, ct)
+            || !await db.Permisos.AnyAsync(p => p.IdPermiso == permisoId, ct))
+        {
+            return false;
+        }
+
+        var relacion = await db.RolPermisos.SingleOrDefaultAsync(
+            rp => rp.RolId == rolId && rp.PermisoId == permisoId, ct);
+
+        if ((asignar && relacion is not null)
+            || (!asignar && relacion is null))
+        {
+            return true;
+        }
+
+        if (!asignar && await db.UsuarioRoles.AnyAsync(
+            ur => ur.UsuarioId == usuarioActualId && ur.RolId == rolId, ct))
+        {
+            throw new ConflictoNegocioException(
+                "No puedes retirar permisos de un rol asignado a tu cuenta. " +
+                "Debe hacerlo otro administrador autorizado.");
+        }
+
+        if (asignar)
+        {
+            db.RolPermisos.Add(new RolPermiso
+            {
+                RolId = rolId,
+                PermisoId = permisoId
+            });
+        }
+        else
+        {
+            db.RolPermisos.Remove(relacion!);
+        }
+
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+    //[FIN][16/9/2026][jgarciad8][Consulta y asignación de permisos de un rol]
 }
 //[FIN][16/9/2026][jgarciad8][Servicio de roles y asignaciones]

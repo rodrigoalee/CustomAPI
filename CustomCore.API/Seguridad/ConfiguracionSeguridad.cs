@@ -78,6 +78,12 @@ public static class ConfiguracionSeguridad
         servicios.AddScoped<RolService>();
         //[FIN][16/9/2026][jgarciad8][Registro del servicio de roles]
 
+
+        //[INICIO][16/9/2026][jgarciad8][Registro del servicio de permisos]
+        servicios.AddScoped<PermisoService>();
+        //[FIN][16/9/2026][jgarciad8][Registro del servicio de permisos]
+
+
         //[INICIO][16/9/2026][jgarciad8][Validación de tokens recibidos por la API]
         servicios
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -209,8 +215,35 @@ public static class ConfiguracionSeguridad
                     politica.RequireAuthenticatedUser();
                     politica.AddRequirements(new PermisoRequirement(codigo));
                 });
+
             }
             //[FIN][16/9/2026][jgarciad8][Políticas de roles y asignaciones]
+
+
+            //[INICIO][16/9/2026][jgarciad8][Políticas de permisos y asignación a roles]
+            foreach (var codigo in new[]
+            {
+                    PermisosSistema.PermisosLeer,
+                    PermisosSistema.PermisosCrear,
+                    PermisosSistema.PermisosEditar,
+                    PermisosSistema.PermisosEliminar,
+                    PermisosSistema.RolesAsignarPermisos
+})
+            {
+                opciones.AddPolicy(codigo, politica =>
+                {
+                    politica.RequireAuthenticatedUser();
+                    politica.AddRequirements(new PermisoRequirement(codigo));
+                });
+            }
+            //[FIN][16/9/2026][jgarciad8][Políticas de permisos y asignación a roles]
+
+
+
+
+
+
+
 
         });
         //[FIN][16/9/2026][jgarciad8][Políticas de autorización por permisos]

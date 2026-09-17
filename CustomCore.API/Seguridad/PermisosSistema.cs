@@ -22,5 +22,14 @@ public static class PermisosSistema
     public const string UsuariosAsignarRoles = "usuarios.asignar_roles";
     //[FIN][16/9/2026][jgarciad8][Permisos de administración de roles]
 
+
+    //[INICIO][16/9/2026][jgarciad8][Permisos del catálogo y asignación a roles]
+    public const string PermisosLeer = "permisos.leer";
+    public const string PermisosCrear = "permisos.crear";
+    public const string PermisosEditar = "permisos.editar";
+    public const string PermisosEliminar = "permisos.eliminar";
+    public const string RolesAsignarPermisos = "roles.asignar_permisos";
+    //[FIN][16/9/2026][jgarciad8][Permisos del catálogo y asignación a roles]
+
 }
 //[FIN][16/9/2026][jgarciad8][Códigos de permisos utilizados por el sistema]
