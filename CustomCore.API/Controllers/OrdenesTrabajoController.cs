@@ -2,15 +2,22 @@
 using CustomCore.API.Dtos;
 using CustomCore.API.Servicios;
 using Microsoft.AspNetCore.Mvc;
+//[INICIO][17/9/2026][jgarciad8][Dependencias de autorización]
+using CustomCore.API.Seguridad;
+using Microsoft.AspNetCore.Authorization;
+using System.IdentityModel.Tokens.Jwt;
+//[FIN][17/9/2026][jgarciad8][Dependencias de autorización]
 
 namespace CustomCore.API.Controllers
 {
     [ApiController]
     [Route("api/ordenes")]
+    [Authorize]
     public sealed class OrdenesTrabajoController(OrdenTrabajoService servicio) : ControllerBase
     {
         //[INICIO][31/8/2026][Rodriale][Tablero de órdenes con filtros y paginación]
         [HttpGet]
+        [Authorize(Policy = PermisosSistema.OrdenesLeer)]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public Task<ResultadoPaginado<OrdenListaDto>> Obtener(
             [FromQuery] ConsultaOrdenes consulta,
@@ -20,6 +27,7 @@ namespace CustomCore.API.Controllers
 
         //[INICIO][31/8/2026][Rodriale][Detalle de una orden; si no existe se responde 404 y no un 200 con nulos]
         [HttpGet("{id:int}")]
+        [Authorize(Policy = PermisosSistema.OrdenesLeer)]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<OrdenDetalleDto>> ObtenerPorId(
@@ -33,6 +41,7 @@ namespace CustomCore.API.Controllers
 
         //[INICIO][31/8/2026][Rodriale][Alta de la orden; el 409 sale cuando falta stock o el catálogo no cuadra, y lo arma el manejador global]
         [HttpPost]
+        [Authorize(Policy = PermisosSistema.OrdenesCrear)]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -40,6 +49,18 @@ namespace CustomCore.API.Controllers
             CrearOrdenRequest request,
             CancellationToken cancellationToken)
         {
+            //[INICIO][17/9/2026][jgarciad8][Identificación del responsable desde el JWT]
+            if (!int.TryParse(
+                User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value,
+                out var usuarioActualId)
+                || usuarioActualId <= 0)
+            {
+                return Unauthorized();
+            }
+
+
+            request = request with { UsuarioRecepcionId = usuarioActualId };
+            //[FIN][17/9/2026][jgarciad8][Identificación del responsable desde el JWT]
             var id = await servicio.CrearAsync(request, cancellationToken);
             return CreatedAtAction(nameof(ObtenerPorId), new { id }, null);
         }
@@ -47,6 +68,7 @@ namespace CustomCore.API.Controllers
 
         //[INICIO][31/8/2026][Rodriale][Actualizar diagnóstico y mecánico asignado]
         [HttpPut("{id:int}")]
+        [Authorize(Policy = PermisosSistema.OrdenesEditar)]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -62,6 +84,7 @@ namespace CustomCore.API.Controllers
 
         //[INICIO][31/8/2026][Rodriale][Mover la orden de estado; finalizar sella la fecha de salida]
         [HttpPatch("{id:int}/estado")]
+        [Authorize(Policy = PermisosSistema.OrdenesCambiarEstado)]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -77,6 +100,7 @@ namespace CustomCore.API.Controllers
 
         //[INICIO][31/8/2026][Rodriale][Agregar trabajo a una orden abierta; descuenta stock y recalcula el total]
         [HttpPost("{id:int}/lineas")]
+        [Authorize(Policy = PermisosSistema.OrdenesEditar)]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -95,6 +119,7 @@ namespace CustomCore.API.Controllers
 
         //[INICIO][31/8/2026][Rodriale][Quitar una línea; si era repuesto, regresa a bodega]
         [HttpDelete("{id:int}/lineas/{lineaId:int}")]
+        [Authorize(Policy = PermisosSistema.OrdenesEditar)]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
