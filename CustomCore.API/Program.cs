@@ -4,6 +4,7 @@ using CustomCore.API.Middleware;
 using CustomCore.API.Servicios;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using CustomCore.API.Seguridad;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -92,6 +93,10 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+//[INICIO][16/9/2026][jgarciad8][Registro de autenticación y servicios de seguridad]
+builder.Services.AgregarSeguridad(builder.Configuration);
+//[FIN][16/9/2026][jgarciad8][Registro de autenticación y servicios de seguridad]
+
 var app = builder.Build();
 
 app.UseForwardedHeaders();
@@ -106,6 +111,8 @@ app.UseSwaggerUI();
 if (app.Environment.IsDevelopment())
 
 app.UseCors(PoliticaCors);
+
+app.UseAuthentication();
 
 app.UseAuthorization();
 
