@@ -50,6 +50,11 @@ namespace CustomCore.API.Dtos
         [Range(15, 480)] int DuracionMinutos,
         [MaxLength(500)] string? Motivo);
 
-    public record CambiarEstadoCitaRequest(EstadoCita Estado);
+    //[INICIO][17/9/2026][jgarciad8][Validación de estados permitidos para citas]
+    public record CambiarEstadoCitaRequest(
+        [EnumDataType(typeof(EstadoCita),
+        ErrorMessage = "El estado de la cita no es válido.")]
+    EstadoCita Estado);
+    //[FIN][17/9/2026][jgarciad8][Validación de estados permitidos para citas]
 }
 //[FIN][31/8/2026][Rodriale][DTOs del módulo de citas]
