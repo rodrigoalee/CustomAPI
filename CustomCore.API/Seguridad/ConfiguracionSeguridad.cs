@@ -74,6 +74,16 @@ public static class ConfiguracionSeguridad
         servicios.AddScoped<IAuthorizationHandler, PermisoHandler>();
         //[FIN][16/9/2026][jgarciad8][Registro del servicio de usuarios y verificador de permisos]
 
+        //[INICIO][16/9/2026][jgarciad8][Registro del servicio de roles]
+        servicios.AddScoped<RolService>();
+        //[FIN][16/9/2026][jgarciad8][Registro del servicio de roles]
+
+
+        //[INICIO][16/9/2026][jgarciad8][Registro del servicio de permisos]
+        servicios.AddScoped<PermisoService>();
+        //[FIN][16/9/2026][jgarciad8][Registro del servicio de permisos]
+
+
         //[INICIO][16/9/2026][jgarciad8][Validación de tokens recibidos por la API]
         servicios
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -110,6 +120,7 @@ public static class ConfiguracionSeguridad
                         NameClaimType = JwtRegisteredClaimNames.Sub
                     };
 
+                //[INICIO][17/9/2026][jgarciad8][Validación de cuenta activa y versión de credenciales]
                 opciones.Events = new JwtBearerEvents
                 {
                     OnTokenValidated = async contexto =>
@@ -120,26 +131,39 @@ public static class ConfiguracionSeguridad
                         if (!int.TryParse(identificador, out var idUsuario)
                             || idUsuario <= 0)
                         {
-                            contexto.Fail("Token no válido.");
+                            contexto.Fail("Sesión inválida.");
                             return;
                         }
 
                         var db = contexto.HttpContext.RequestServices
                             .GetRequiredService<AppDbContext>();
 
-
-                        var usuarioActivo = await db.Usuarios
+                        var usuario = await db.Usuarios
                             .AsNoTracking()
-                            .AnyAsync(
-                                u => u.IdUsuario == idUsuario && u.Activo,
-                                contexto.HttpContext.RequestAborted);
+                            .Where(u => u.IdUsuario == idUsuario && u.Activo)
+                            .Select(u => new { u.PasswordHash })
+                            .SingleOrDefaultAsync(contexto.HttpContext.RequestAborted);
 
-                        if (!usuarioActivo)
+                        if (usuario is null)
                         {
-                            contexto.Fail("Usuario no habilitado.");
+                            contexto.Fail("Sesión inválida.");
+                            return;
+                        }
+
+                        var jwtService = contexto.HttpContext.RequestServices
+                            .GetRequiredService<JwtService>();
+
+                        var version = contexto.Principal?
+                            .FindFirst(JwtService.ClaimVersionCredenciales)?.Value;
+
+                        if (!jwtService.CoincideVersionCredenciales(
+                            version, idUsuario, usuario.PasswordHash))
+                        {
+                            contexto.Fail("Sesión inválida.");
                         }
                     }
                 };
+                //[FIN][17/9/2026][jgarciad8][Validación de cuenta activa y versión de credenciales]
             });
 
         //[INICIO][16/9/2026][jgarciad8][Políticas de autorización por permisos]
@@ -189,6 +213,102 @@ public static class ConfiguracionSeguridad
                         new PermisoRequirement(PermisosSistema.UsuariosCambiarEstado));
                 });
             //[FIN][16/9/2026][jgarciad8][Políticas para editar usuarios y administrar su estado]
+
+            //[INICIO][16/9/2026][jgarciad8][Políticas de roles y asignaciones]
+            foreach (var codigo in new[]
+            {
+                    PermisosSistema.RolesLeer,
+                    PermisosSistema.RolesCrear,
+                    PermisosSistema.RolesEditar,
+                    PermisosSistema.RolesEliminar,
+                    PermisosSistema.UsuariosAsignarRoles
+})
+            {
+                opciones.AddPolicy(codigo, politica =>
+                {
+                    politica.RequireAuthenticatedUser();
+                    politica.AddRequirements(new PermisoRequirement(codigo));
+                });
+
+            }
+            //[FIN][16/9/2026][jgarciad8][Políticas de roles y asignaciones]
+
+
+            //[INICIO][16/9/2026][jgarciad8][Políticas de permisos y asignación a roles]
+            foreach (var codigo in new[]
+            {
+                    PermisosSistema.PermisosLeer,
+                    PermisosSistema.PermisosCrear,
+                    PermisosSistema.PermisosEditar,
+                    PermisosSistema.PermisosEliminar,
+                    PermisosSistema.RolesAsignarPermisos
+})
+            {
+                opciones.AddPolicy(codigo, politica =>
+                {
+                    politica.RequireAuthenticatedUser();
+                    politica.AddRequirements(new PermisoRequirement(codigo));
+                });
+            }
+            //[FIN][16/9/2026][jgarciad8][Políticas de permisos y asignación a roles]
+
+
+
+            //[INICIO][17/9/2026][jgarciad8][Políticas de acceso a los módulos del taller]
+            foreach (var codigo in new[]
+            {
+                PermisosSistema.ClientesLeer,
+                PermisosSistema.ClientesCrear,
+                PermisosSistema.ClientesEditar,
+                PermisosSistema.VehiculosLeer,
+                PermisosSistema.VehiculosCrear,
+                PermisosSistema.VehiculosEditar,
+                PermisosSistema.VehiculosEliminar,
+                PermisosSistema.RepuestosLeer,
+                PermisosSistema.RepuestosCrear,
+                PermisosSistema.RepuestosEditar,
+                PermisosSistema.RepuestosBaja,
+                PermisosSistema.ServiciosLeer,
+                PermisosSistema.ServiciosCrear,
+                PermisosSistema.ServiciosEditar,
+                PermisosSistema.ServiciosBaja,
+                PermisosSistema.CitasLeer,
+                PermisosSistema.CitasCrear,
+                PermisosSistema.CitasEditar,
+                PermisosSistema.CitasCambiarEstado,
+                PermisosSistema.OrdenesLeer,
+                PermisosSistema.OrdenesCrear,
+                PermisosSistema.OrdenesEditar,
+                PermisosSistema.OrdenesCambiarEstado
+            })
+            {
+                opciones.AddPolicy(codigo, politica =>
+                {
+                    politica.RequireAuthenticatedUser();
+                    politica.AddRequirements(new PermisoRequirement(codigo));
+                });
+            }
+            //[FIN][17/9/2026][jgarciad8][Políticas de acceso a los módulos del taller]
+
+            //[INICIO][17/9/2026][jgarciad8][Políticas de facturación y pagos]
+            foreach (var codigo in new[]
+            {
+                    PermisosSistema.FacturasLeer,
+                    PermisosSistema.FacturasCrear,
+                    PermisosSistema.FacturasRegistrarPagoManual,
+                    PermisosSistema.PagosCrearSesion,
+                    PermisosSistema.PagosCobrar
+                })
+            {
+                opciones.AddPolicy(codigo, politica =>
+                {
+                    politica.RequireAuthenticatedUser();
+                    politica.AddRequirements(new PermisoRequirement(codigo));
+                });
+            }
+            //[FIN][17/9/2026][jgarciad8][Políticas de facturación y pagos]
+
+
         });
         //[FIN][16/9/2026][jgarciad8][Políticas de autorización por permisos]
 
