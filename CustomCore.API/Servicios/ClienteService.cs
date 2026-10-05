@@ -81,11 +81,13 @@ namespace CustomCore.API.Servicios
             var filasAfectadas = await db.Clientes
                 .Where(c => c.IdCliente == id)
                 //[INICIO][28/8/2026][Rodriale][UPDATE directo sin traer la entidad a memoria]
-                .ExecuteUpdateAsync(s => s
+                //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                .ActualizarAuditadoAsync(db, id, s => s
                     .SetProperty(c => c.NombreCompleto, request.NombreCompleto)
                     .SetProperty(c => c.Telefono, request.Telefono)
                     .SetProperty(c => c.Correo, request.Correo)
                     .SetProperty(c => c.Nit, request.Nit), cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
             //[FIN][28/8/2026][Rodriale][UPDATE directo sin traer la entidad a memoria]
             return filasAfectadas > 0;
         }

@@ -12,42 +12,55 @@ namespace CustomCore.API.Data.Auditoria;
 
 public sealed class AuditoriaInterceptor(IHttpContextAccessor httpContextAccessor) : SaveChangesInterceptor
 {
-    private void Capturar(DbContextEventData datos)
+    //[INICIO][5/10/2026][jgarciad8][Captura de originales reales bajo bloqueo y responsable validado]
+    internal int? ObtenerUsuario()
+    {
+        var identidad = httpContextAccessor.HttpContext?.User;
+        if (identidad?.Identity?.IsAuthenticated != true) return null;
+        if (!int.TryParse(identidad.FindFirst("sub")?.Value, NumberStyles.None,
+            CultureInfo.InvariantCulture, out var usuarioId) || usuarioId <= 0)
+            throw new InvalidOperationException("La identidad autenticada no tiene un usuario válido.");
+        return usuarioId;
+    }
+
+    private async ValueTask Capturar(DbContextEventData datos, bool asincrono, CancellationToken ct)
     {
         if (datos.Context is not AppDbContext db) return;
         db.ChangeTracker.DetectChanges();
-        db.CambiosAuditoria = db.ChangeTracker.Entries()
-            .Where(CambioAuditoria.EsAuditable).Select(e => new CambioAuditoria(e)).ToList();
+        var entradas = db.ChangeTracker.Entries().Where(CambioAuditoria.EsAuditable).ToList();
+        db.CambiosAuditoria = [];
         db.UltimoLogAuditoria = null;
-        if (db.CambiosAuditoria.Count == 0) return;
+        if (entradas.Count == 0) return;
         if (db.Database.CurrentTransaction is null)
             throw new InvalidOperationException("La auditoría necesita la transacción de AppDbContext.");
-
-        var identidad = httpContextAccessor.HttpContext?.User;
-        db.UsuarioAuditoria = null;
-        if (identidad?.Identity?.IsAuthenticated == true)
-        {
-     
-            if (!int.TryParse(identidad.FindFirst("sub")?.Value, NumberStyles.None,
-                    CultureInfo.InvariantCulture, out var usuarioId) || usuarioId <= 0)
-                throw new InvalidOperationException("La identidad autenticada no tiene un usuario válido.");
-            db.UsuarioAuditoria = usuarioId;
-        }
+        db.UsuarioAuditoria = ObtenerUsuario();
         db.FechaAuditoria = DateTimeOffset.UtcNow;
+        foreach (var entrada in entradas)
+        {
+            Microsoft.EntityFrameworkCore.ChangeTracking.PropertyValues? originales = null;
+            if (entrada.State is EntityState.Modified or EntityState.Deleted)
+            {
+                using var bloqueo = BloqueoAuditoria.Crear(db, entrada);
+                if (asincrono) await bloqueo.ExecuteScalarAsync(ct); else bloqueo.ExecuteScalar();
+                originales = asincrono ? await entrada.GetDatabaseValuesAsync(ct) : entrada.GetDatabaseValues();
+            }
+            db.CambiosAuditoria.Add(new CambioAuditoria(entrada, originales));
+        }
     }
+    //[FIN][5/10/2026][jgarciad8][Captura de originales reales bajo bloqueo y responsable validado]
 
     public override InterceptionResult<int> SavingChanges(
         DbContextEventData eventData, InterceptionResult<int> result)
     {
-        Capturar(eventData);
+        Capturar(eventData, false, CancellationToken.None).GetAwaiter().GetResult();
         return result;
     }
 
-    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+    public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
     {
-        Capturar(eventData);
-        return ValueTask.FromResult(result);
+        await Capturar(eventData, true, cancellationToken);
+        return result;
     }
 
     public override int SavedChanges(SaveChangesCompletedEventData eventData, int result)
@@ -55,8 +68,13 @@ public sealed class AuditoriaInterceptor(IHttpContextAccessor httpContextAccesso
         if (eventData.Context is AppDbContext db)
             foreach (var cambio in db.CambiosAuditoria)
             {
-                using var comando = CrearComando(db, cambio.CrearLog(db.UsuarioAuditoria, db.FechaAuditoria));
-                db.UltimoLogAuditoria = (int)comando.ExecuteScalar()!;
+                //[INICIO][5/10/2026][jgarciad8][Valores persistidos y marcador de confirmación de toda la unidad]
+                var actuales = cambio.Eliminacion ? null : cambio.Entrada.GetDatabaseValues();
+                var log = cambio.CrearLog(db.UsuarioAuditoria, db.FechaAuditoria, actuales);
+                if (log is null) continue;
+                using var comando = CrearComando(db, log);
+                db.IdConfirmacionAuditoria = db.UltimoLogAuditoria = (int)comando.ExecuteScalar()!;
+                //[FIN][5/10/2026][jgarciad8][Valores persistidos y marcador de confirmación de toda la unidad]
             }
         return result;
     }
@@ -67,13 +85,19 @@ public sealed class AuditoriaInterceptor(IHttpContextAccessor httpContextAccesso
         if (eventData.Context is AppDbContext db)
             foreach (var cambio in db.CambiosAuditoria)
             {
-                await using var comando = CrearComando(db, cambio.CrearLog(db.UsuarioAuditoria, db.FechaAuditoria));
-                db.UltimoLogAuditoria = (int)(await comando.ExecuteScalarAsync(cancellationToken))!;
+                //[INICIO][5/10/2026][jgarciad8][Valores persistidos y marcador de confirmación de toda la unidad]
+                var actuales = cambio.Eliminacion ? null : await cambio.Entrada.GetDatabaseValuesAsync(cancellationToken);
+                var log = cambio.CrearLog(db.UsuarioAuditoria, db.FechaAuditoria, actuales);
+                if (log is null) continue;
+                await using var comando = CrearComando(db, log);
+                db.IdConfirmacionAuditoria = db.UltimoLogAuditoria = (int)(await comando.ExecuteScalarAsync(cancellationToken))!;
+                //[FIN][5/10/2026][jgarciad8][Valores persistidos y marcador de confirmación de toda la unidad]
             }
         return result;
     }
 
-    private static DbCommand CrearComando(AppDbContext db, LogAccion log)
+    //[INICIO][5/10/2026][jgarciad8][Escritor compartido con las operaciones directas]
+    internal static DbCommand CrearComando(AppDbContext db, LogAccion log)
     {
     
         var comando = db.Database.GetDbConnection().CreateCommand();
@@ -95,5 +119,6 @@ public sealed class AuditoriaInterceptor(IHttpContextAccessor httpContextAccesso
         comando.Parameters.Add(new NpgsqlParameter("fecha", NpgsqlDbType.TimestampTz) { Value = log.FechaHora });
         return comando;
     }
+    //[FIN][5/10/2026][jgarciad8][Escritor compartido con las operaciones directas]
 }
 //[FIN][2/10/2026][jgarciad8][Interceptor de auditoría sin recursión y dentro de la transacción del cambio]

@@ -27,6 +27,9 @@ public sealed partial class AppDbContext
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         if (!RequiereAuditoria()) return base.SaveChanges(acceptAllChangesOnSuccess);
+        //[INICIO][5/10/2026][jgarciad8][Conservar el marcador anterior si se revierte este guardado]
+        var marcaAnterior = IdConfirmacionAuditoria;
+        //[FIN][5/10/2026][jgarciad8][Conservar el marcador anterior si se revierte este guardado]
         try
         {
             int resultado;
@@ -55,6 +58,13 @@ public sealed partial class AppDbContext
             if (acceptAllChangesOnSuccess) ChangeTracker.AcceptAllChanges();
             return resultado;
         }
+        //[INICIO][5/10/2026][jgarciad8][No verificar un COMMIT con un log que fue revertido]
+        catch
+        {
+            IdConfirmacionAuditoria = marcaAnterior;
+            throw;
+        }
+        //[FIN][5/10/2026][jgarciad8][No verificar un COMMIT con un log que fue revertido]
         finally { CambiosAuditoria.Clear(); }
     }
 
@@ -65,6 +75,9 @@ public sealed partial class AppDbContext
         bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         if (!RequiereAuditoria()) return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        //[INICIO][5/10/2026][jgarciad8][Conservar el marcador anterior si se revierte este guardado]
+        var marcaAnterior = IdConfirmacionAuditoria;
+        //[FIN][5/10/2026][jgarciad8][Conservar el marcador anterior si se revierte este guardado]
         try
         {
             int resultado;
@@ -96,6 +109,13 @@ public sealed partial class AppDbContext
             if (acceptAllChangesOnSuccess) ChangeTracker.AcceptAllChanges();
             return resultado;
         }
+        //[INICIO][5/10/2026][jgarciad8][No verificar un COMMIT con un log que fue revertido]
+        catch
+        {
+            IdConfirmacionAuditoria = marcaAnterior;
+            throw;
+        }
+        //[FIN][5/10/2026][jgarciad8][No verificar un COMMIT con un log que fue revertido]
         finally { CambiosAuditoria.Clear(); }
     }
 }
