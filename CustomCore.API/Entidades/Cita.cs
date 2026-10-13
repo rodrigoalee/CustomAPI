@@ -5,6 +5,11 @@ public class Cita
 {
     public int IdCita { get; set; }
     public int VehiculoId { get; set; }
+
+    //[INICIO][12/10/2026][Rodriale][Sede donde se agenda la cita]
+    public int SucursalId { get; set; }
+    //[FIN][12/10/2026][Rodriale][Sede donde se agenda la cita]
+
     public DateTimeOffset FechaHora { get; set; }
     public int DuracionMinutos { get; set; } = 60;
     public string? Motivo { get; set; }
