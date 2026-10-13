@@ -8,6 +8,11 @@ using CustomCore.API.Seguridad;
 
 var builder = WebApplication.CreateBuilder(args);
 
+//[INICIO][2/10/2026][jgarciad8][Auditoría de seguridad con identidad del request validado]
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<CustomCore.API.Data.Auditoria.AuditoriaInterceptor>();
+//[FIN][2/10/2026][jgarciad8][Auditoría de seguridad con identidad del request validado]
+
 //[INICIO][27/8/2026][Rodriale][validacion al buscar la dirección de Postgres aplicando un "FailFast]
 var connectionString = builder.Configuration.GetConnectionString("Default");
     if (string.IsNullOrWhiteSpace(connectionString))
