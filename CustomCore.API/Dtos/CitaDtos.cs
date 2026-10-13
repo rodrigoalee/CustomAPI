@@ -13,11 +13,17 @@ namespace CustomCore.API.Dtos
         public DateTimeOffset? Desde { get; init; }
         public DateTimeOffset? Hasta { get; init; }
         public EstadoCita? Estado { get; init; }
+
+        //[INICIO][12/10/2026][Rodriale][Filtro por sede; solo lo respeta quien ve todas]
+        [Range(1, int.MaxValue)]
+        public int? SucursalId { get; init; }
+        //[FIN][12/10/2026][Rodriale][Filtro por sede]
     }
     //[FIN][31/8/2026][Rodriale][Filtros de agenda: por vehículo, por rango de fechas y por estado]
 
     public record CitaListaDto(
         int IdCita,
+        int SucursalId,
         int VehiculoId,
         string Placa,
         string NombreCliente,
@@ -27,6 +33,7 @@ namespace CustomCore.API.Dtos
 
     public record CitaDetalleDto(
         int IdCita,
+        int SucursalId,
         int VehiculoId,
         string Placa,
         string Marca,
@@ -43,7 +50,10 @@ namespace CustomCore.API.Dtos
         [Range(1, int.MaxValue)] int VehiculoId,
         DateTimeOffset FechaHora,
         [Range(15, 480)] int DuracionMinutos,
-        [MaxLength(500)] string? Motivo);
+        [MaxLength(500)] string? Motivo,
+        //[INICIO][12/10/2026][Rodriale][Solo lo usa quien ve todas las sedes; al empleado se le asigna la suya]
+        [Range(1, int.MaxValue)] int? SucursalId = null);
+        //[FIN][12/10/2026][Rodriale][Solo lo usa quien ve todas las sedes]
 
     public record ReprogramarCitaRequest(
         DateTimeOffset FechaHora,

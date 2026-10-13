@@ -38,6 +38,13 @@ public sealed class OrdenTrabajoEncabezadoConfiguration : IEntityTypeConfigurati
             .HasForeignKey(o => o.MecanicoAsignadoId)
             .OnDelete(DeleteBehavior.Restrict);
         //[FIN][28/8/2026][Rodriale][Relaciones con Usuarios: recepción obligatoria, mecánico opcional]
+
+        //[INICIO][12/10/2026][Rodriale][Sede de la orden]
+        builder.HasOne<Sucursal>()
+            .WithMany()
+            .HasForeignKey(o => o.SucursalId)
+            .OnDelete(DeleteBehavior.Restrict);
+        //[FIN][12/10/2026][Rodriale][Sede de la orden]
     }
 }
 //[FIN][28/8/2026][Rodriale][Mapeo del encabezado de orden de trabajo]

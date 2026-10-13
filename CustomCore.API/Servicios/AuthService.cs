@@ -97,10 +97,12 @@ public sealed class AuthService(
                 u.IdUsuario == idUsuario
                 && u.Activo
                 && u.PasswordHash == hashAnterior)
-            .ExecuteUpdateAsync(
+            //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+            .ActualizarAuditadoAsync(db, idUsuario,
                 cambios => cambios.SetProperty(
                     u => u.PasswordHash, hashNuevo),
-                cancellationToken);
+                cancellationToken, cambioPassword: true);
+        //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
 
         return filas == 1
             ? ResultadoCambioPassword.Exito

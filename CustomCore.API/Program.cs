@@ -8,6 +8,11 @@ using CustomCore.API.Seguridad;
 
 var builder = WebApplication.CreateBuilder(args);
 
+//[INICIO][2/10/2026][jgarciad8][Auditoría de seguridad con identidad del request validado]
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<CustomCore.API.Data.Auditoria.AuditoriaInterceptor>();
+//[FIN][2/10/2026][jgarciad8][Auditoría de seguridad con identidad del request validado]
+
 //[INICIO][27/8/2026][Rodriale][validacion al buscar la dirección de Postgres aplicando un "FailFast]
 var connectionString = builder.Configuration.GetConnectionString("Default");
     if (string.IsNullOrWhiteSpace(connectionString))
@@ -38,6 +43,9 @@ builder.Services.AddScoped<CitaService>();
 builder.Services.AddScoped<OrdenTrabajoService>();
 builder.Services.AddScoped<FacturaService>();
 builder.Services.AddScoped<PagoStripeService>();
+builder.Services.AddScoped<SucursalService>();
+builder.Services.AddScoped<SucursalActual>();
+builder.Services.AddScoped<InventarioService>();
 //[FIN][Rodriale][Registro de inyección de dependencias]
 
 //[INICIO][31/8/2026][Rodriale][Enlaza la sección "Facturacion" de appsettings con las opciones de impuesto]

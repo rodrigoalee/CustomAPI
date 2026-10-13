@@ -3,11 +3,12 @@ using CustomCore.API.Data;
 using CustomCore.API.Dtos;
 using CustomCore.API.Entidades;
 using CustomCore.API.Excepciones;
+using CustomCore.API.Seguridad;
 using Microsoft.EntityFrameworkCore;
 
 namespace CustomCore.API.Servicios
 {
-    public sealed class CitaService(AppDbContext db)
+    public sealed class CitaService(AppDbContext db, SucursalActual sucursal)
     {
         //[INICIO][31/8/2026][Rodriale][Margen para acotar la ventana que se trae a memoria al validar solapamiento]
         private const int VentanaDias = 1;
@@ -18,6 +19,12 @@ namespace CustomCore.API.Servicios
             CancellationToken cancellationToken)
         {
             var query = db.Citas.AsNoTracking();
+
+            //[INICIO][12/10/2026][Rodriale][El empleado solo ve la agenda de su sede; quien ve todas puede filtrar]
+            var filtroSucursal = await sucursal.AlcanceAsync(cancellationToken) ?? consulta.SucursalId;
+            if (filtroSucursal is { } sucursalId)
+                query = query.Where(c => c.SucursalId == sucursalId);
+            //[FIN][12/10/2026][Rodriale][El empleado solo ve la agenda de su sede]
 
             if (consulta.VehiculoId is { } vehiculoId)
                 query = query.Where(c => c.VehiculoId == vehiculoId);
@@ -47,6 +54,7 @@ namespace CustomCore.API.Servicios
                 .Take(consulta.Tamanio)
                 .Select(c => new CitaListaDto(
                     c.IdCita,
+                    c.SucursalId,
                     c.VehiculoId,
                     c.Vehiculo.Placa,
                     c.Vehiculo.Cliente.NombreCompleto,
@@ -58,12 +66,18 @@ namespace CustomCore.API.Servicios
             return new ResultadoPaginado<CitaListaDto>(items, consulta.Pagina, consulta.Tamanio, total);
         }
 
-        public Task<CitaDetalleDto?> ObtenerPorIdAsync(int id, CancellationToken cancellationToken) =>
-            db.Citas
+        public async Task<CitaDetalleDto?> ObtenerPorIdAsync(int id, CancellationToken cancellationToken)
+        {
+            //[INICIO][12/10/2026][Rodriale][Una cita de otra sede se comporta como inexistente]
+            var alcance = await sucursal.AlcanceAsync(cancellationToken);
+            //[FIN][12/10/2026][Rodriale][Una cita de otra sede se comporta como inexistente]
+
+            return await db.Citas
                 .AsNoTracking()
-                .Where(c => c.IdCita == id)
+                .Where(c => c.IdCita == id && (alcance == null || c.SucursalId == alcance))
                 .Select(c => new CitaDetalleDto(
                     c.IdCita,
+                    c.SucursalId,
                     c.VehiculoId,
                     c.Vehiculo.Placa,
                     c.Vehiculo.Marca,
@@ -76,11 +90,16 @@ namespace CustomCore.API.Servicios
                     c.Motivo,
                     c.Estado))
                 .FirstOrDefaultAsync(cancellationToken);
+        }
 
         public async Task<int> CrearAsync(CrearCitaRequest request, CancellationToken cancellationToken)
         {
             if (request.FechaHora < DateTimeOffset.UtcNow)
                 throw new ConflictoNegocioException("No se puede agendar una cita en una fecha pasada.");
+
+            //[INICIO][12/10/2026][Rodriale][La cita queda en la sede de quien la agenda]
+            var sucursalId = await sucursal.ResolverAsync(request.SucursalId, cancellationToken);
+            //[FIN][12/10/2026][Rodriale][La cita queda en la sede de quien la agenda]
 
             await ValidarSolapamientoAsync(
                 request.VehiculoId,
@@ -92,6 +111,7 @@ namespace CustomCore.API.Servicios
             var cita = new Cita
             {
                 VehiculoId = request.VehiculoId,
+                SucursalId = sucursalId,
                 FechaHora = request.FechaHora,
                 DuracionMinutos = request.DuracionMinutos,
                 Motivo = request.Motivo,
@@ -104,14 +124,23 @@ namespace CustomCore.API.Servicios
             return cita.IdCita;
         }
 
-        public async Task<bool> ReprogramarAsync(
+        public Task<bool> ReprogramarAsync(
             int id,
             ReprogramarCitaRequest request,
             CancellationToken cancellationToken)
+            => db.EjecutarUnidadAuditadaAsync<bool>(async () =>
         {
+            //[INICIO][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
+            await db.BloquearFilaAsync<Cita>(id, cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
+
+            //[INICIO][12/10/2026][Rodriale][Reprogramar una cita de otra sede responde 404]
+            var alcance = await sucursal.AlcanceAsync(cancellationToken);
+            //[FIN][12/10/2026][Rodriale][Reprogramar una cita de otra sede responde 404]
+
             var cita = await db.Citas
                 .AsNoTracking()
-                .Where(c => c.IdCita == id)
+                .Where(c => c.IdCita == id && (alcance == null || c.SucursalId == alcance))
                 .Select(c => new { c.VehiculoId, c.Estado })
                 .FirstOrDefaultAsync(cancellationToken);
 
@@ -133,23 +162,31 @@ namespace CustomCore.API.Servicios
 
             await db.Citas
                 .Where(c => c.IdCita == id)
-                .ExecuteUpdateAsync(s => s
+                //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                .ActualizarAuditadoAsync(db, id, s => s
                     .SetProperty(c => c.FechaHora, request.FechaHora)
                     .SetProperty(c => c.DuracionMinutos, request.DuracionMinutos)
                     .SetProperty(c => c.Motivo, request.Motivo),
                     cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
 
             return true;
-        }
+        }, cancellationToken);
 
         public async Task<bool> CambiarEstadoAsync(
             int id,
             CambiarEstadoCitaRequest request,
             CancellationToken cancellationToken)
         {
+            //[INICIO][12/10/2026][Rodriale][Con la sede en el WHERE, una cita ajena afecta 0 filas y responde 404]
+            var alcance = await sucursal.AlcanceAsync(cancellationToken);
+            //[FIN][12/10/2026][Rodriale][Con la sede en el WHERE]
+
             var filasAfectadas = await db.Citas
-                .Where(c => c.IdCita == id)
-                .ExecuteUpdateAsync(s => s.SetProperty(c => c.Estado, request.Estado), cancellationToken);
+                .Where(c => c.IdCita == id && (alcance == null || c.SucursalId == alcance))
+                //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                .ActualizarAuditadoAsync(db, id, s => s.SetProperty(c => c.Estado, request.Estado), cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
 
             return filasAfectadas > 0;
         }
