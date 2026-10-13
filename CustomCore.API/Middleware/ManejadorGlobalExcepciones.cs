@@ -57,6 +57,14 @@ namespace CustomCore.API.Middleware
                     => (StatusCodes.Status409Conflict, "Conflicto de negocio", conflicto.Message),
                 //[FIN][31/8/2026][Rodriale][el cliente puede corregir y reintentar]
 
+                //[INICIO][12/10/2026][Rodriale][Sucursal ajena o usuario sin sucursal: el cliente no puede corregirlo reintentando]
+                AccesoDenegadoException denegado
+                    => (StatusCodes.Status403Forbidden, "Acceso denegado", denegado.Message),
+
+                SolicitudInvalidaException invalida
+                    => (StatusCodes.Status400BadRequest, "Solicitud inválida", invalida.Message),
+                //[FIN][12/10/2026][Rodriale][Sucursal ajena o usuario sin sucursal]
+
                 DbUpdateConcurrencyException
                     => (StatusCodes.Status409Conflict,
                         "Conflicto de concurrencia",
