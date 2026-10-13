@@ -45,6 +45,7 @@ builder.Services.AddScoped<FacturaService>();
 builder.Services.AddScoped<PagoStripeService>();
 builder.Services.AddScoped<SucursalService>();
 builder.Services.AddScoped<SucursalActual>();
+builder.Services.AddScoped<InventarioService>();
 //[FIN][Rodriale][Registro de inyección de dependencias]
 
 //[INICIO][31/8/2026][Rodriale][Enlaza la sección "Facturacion" de appsettings con las opciones de impuesto]
