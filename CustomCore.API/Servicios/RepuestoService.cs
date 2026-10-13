@@ -35,7 +35,6 @@ namespace CustomCore.API.Servicios
                     r.CodigoStock,
                     r.Nombre,
                     r.PrecioUnitario,
-                    r.CantidadStock,
                     r.Activo))
                 .ToListAsync(cancellationToken);
 
@@ -51,7 +50,6 @@ namespace CustomCore.API.Servicios
                     r.CodigoStock,
                     r.Nombre,
                     r.PrecioUnitario,
-                    r.CantidadStock,
                     r.Activo))
                 .FirstOrDefaultAsync(cancellationToken);
 
@@ -61,8 +59,7 @@ namespace CustomCore.API.Servicios
             {
                 CodigoStock = request.CodigoStock,
                 Nombre = request.Nombre,
-                PrecioUnitario = request.PrecioUnitario,
-                CantidadStock = request.CantidadStock
+                PrecioUnitario = request.PrecioUnitario
             };
 
             db.Repuestos.Add(repuesto);
@@ -78,13 +75,14 @@ namespace CustomCore.API.Servicios
         {
             var filasAfectadas = await db.Repuestos
                 .Where(r => r.IdRepuesto == id)
-                .ExecuteUpdateAsync(s => s
+                //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                .ActualizarAuditadoAsync(db, id, s => s
                     .SetProperty(r => r.CodigoStock, request.CodigoStock)
                     .SetProperty(r => r.Nombre, request.Nombre)
                     .SetProperty(r => r.PrecioUnitario, request.PrecioUnitario)
-                    .SetProperty(r => r.CantidadStock, request.CantidadStock)
                     .SetProperty(r => r.Activo, request.Activo),
                     cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
 
             return filasAfectadas > 0;
         }
@@ -94,7 +92,9 @@ namespace CustomCore.API.Servicios
         {
             var filasAfectadas = await db.Repuestos
                 .Where(r => r.IdRepuesto == id)
-                .ExecuteUpdateAsync(s => s.SetProperty(r => r.Activo, false), cancellationToken);
+                //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                .ActualizarAuditadoAsync(db, id, s => s.SetProperty(r => r.Activo, false), cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
 
             return filasAfectadas > 0;
         }
