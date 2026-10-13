@@ -33,7 +33,7 @@ namespace CustomCore.API.Servicios
         private readonly OpcionesStripe _opciones = opciones.Value;
 
         //[INICIO][16/9/2026][Rodriale][Lo mínimo de una factura para cobrarla; se valida una sola vez y lo usan tanto Checkout como el cobro directo]
-        private sealed record FacturaCobrable(int IdFactura, int OrdenTrabajoId, decimal Total, string Placa);
+        private sealed record FacturaCobrable(int IdFactura, int OrdenTrabajoId, decimal Total, string Placa, string CorreoCliente);
         //[FIN][16/9/2026][Rodriale][Lo mínimo de una factura para cobrarla]
 
         //[INICIO][16/9/2026][Rodriale][Crea la página de pago de Stripe para una factura pendiente y devuelve su enlace]
@@ -51,6 +51,10 @@ namespace CustomCore.API.Servicios
                 Mode = "payment",
                 SuccessUrl = _opciones.UrlExito,
                 CancelUrl = _opciones.UrlCancelacion,
+
+                //[INICIO][12/10/2026][Rodriale][El correo sale del cliente de la orden, no de lo que se escriba en la página de pago]
+                CustomerEmail = factura.CorreoCliente,
+                //[FIN][12/10/2026][Rodriale][El correo sale del cliente de la orden]
 
                 //[INICIO][16/9/2026][Rodriale][Un solo renglón con el total de la factura: si se copiaran las líneas, Stripe volvería a sumarlas y el redondeo del IVA podría no cuadrar con lo facturado]
                 LineItems =
@@ -106,6 +110,10 @@ namespace CustomCore.API.Servicios
                 Confirm = true,
                 Description = $"Factura #{factura.IdFactura} · {DescripcionDe(factura)}",
                 Metadata = MetadataDe(factura),
+
+                //[INICIO][12/10/2026][Rodriale][El correo sale del cliente de la orden; sin esto Stripe muestra el que traiga el método de pago, por ejemplo el de Link]
+                ReceiptEmail = factura.CorreoCliente,
+                //[FIN][12/10/2026][Rodriale][El correo sale del cliente de la orden]
 
                 //[INICIO][16/9/2026][Rodriale][Sin redirecciones: al confirmar desde el servidor no hay página a dónde volver, así que solo se aceptan métodos que se resuelven en el momento, como la tarjeta]
                 AutomaticPaymentMethods = new PaymentIntentAutomaticPaymentMethodsOptions
@@ -209,7 +217,8 @@ namespace CustomCore.API.Servicios
                         f.IdFacturaEncabezado,
                         f.OrdenTrabajoId,
                         f.TotalPagado,
-                        f.OrdenTrabajo.Vehiculo.Placa),
+                        f.OrdenTrabajo.Vehiculo.Placa,
+                        f.Cliente.Correo),
                     f.EstadoPago
                 })
                 .FirstOrDefaultAsync(cancellationToken);
