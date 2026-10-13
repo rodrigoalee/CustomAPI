@@ -68,12 +68,14 @@ namespace CustomCore.API.Servicios
         {
             var filasAfectadas = await db.Sucursales
                 .Where(s => s.IdSucursal == id)
-                .ExecuteUpdateAsync(p => p
+                //[INICIO][12/10/2026][Rodriale][Operación directa con bloqueo y log atómico, como el resto de catálogos]
+                .ActualizarAuditadoAsync(db, id, p => p
                     .SetProperty(s => s.Nombre, request.Nombre.Trim())
                     .SetProperty(s => s.Direccion, request.Direccion.Trim())
                     .SetProperty(s => s.Telefono, request.Telefono)
                     .SetProperty(s => s.Activo, request.Activo),
                     cancellationToken);
+            //[FIN][12/10/2026][Rodriale][Operación directa con bloqueo y log atómico]
 
             return filasAfectadas > 0;
         }
@@ -83,7 +85,9 @@ namespace CustomCore.API.Servicios
         {
             var filasAfectadas = await db.Sucursales
                 .Where(s => s.IdSucursal == id)
-                .ExecuteUpdateAsync(p => p.SetProperty(s => s.Activo, false), cancellationToken);
+                //[INICIO][12/10/2026][Rodriale][Operación directa con bloqueo y log atómico, como el resto de catálogos]
+                .ActualizarAuditadoAsync(db, id, p => p.SetProperty(s => s.Activo, false), cancellationToken);
+            //[FIN][12/10/2026][Rodriale][Operación directa con bloqueo y log atómico]
 
             return filasAfectadas > 0;
         }

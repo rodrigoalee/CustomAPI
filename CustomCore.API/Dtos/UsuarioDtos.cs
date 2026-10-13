@@ -8,7 +8,8 @@ public record UsuarioResumenDto(
     int IdUsuario,
     string NombreCompleto,
     string Correo,
-    bool Activo);
+    bool Activo,
+    int? SucursalId);
 //[FIN][16/9/2026][jgarciad8][DTOs del módulo de usuarios]
 
 //[INICIO][16/9/2026][jgarciad8][Datos y validaciones para crear usuarios]
@@ -24,7 +25,12 @@ public record CrearUsuarioRequest(
 
     [Required(ErrorMessage = "La contraseña es obligatoria.")]
     [MaxLength(72, ErrorMessage = "La contraseña no puede superar los 72 caracteres.")]
-    string Password
+    string Password,
+
+    //[INICIO][12/10/2026][Rodriale][Sede del empleado; se omite solo para quien tendrá sucursales.todas]
+    [Range(1, int.MaxValue, ErrorMessage = "La sucursal no es válida.")]
+    int? SucursalId = null
+    //[FIN][12/10/2026][Rodriale][Sede del empleado]
 ) : IValidatableObject
 {
     public IEnumerable<ValidationResult> Validate(
@@ -52,7 +58,12 @@ public record ActualizarUsuarioRequest(
     [Required(ErrorMessage = "El correo es obligatorio.")]
     [EmailAddress(ErrorMessage = "El correo debe tener un formato válido.")]
     [MaxLength(100, ErrorMessage = "El correo no puede superar los 100 caracteres.")]
-    string Correo
+    string Correo,
+
+    //[INICIO][12/10/2026][Rodriale][PUT reemplaza el recurso: omitir la sede deja al usuario sin sede]
+    [Range(1, int.MaxValue, ErrorMessage = "La sucursal no es válida.")]
+    int? SucursalId = null
+    //[FIN][12/10/2026][Rodriale][PUT reemplaza el recurso]
 );
 //[FIN][16/9/2026][jgarciad8][Datos para actualizar información del usuario]
 
