@@ -5,6 +5,11 @@ public class OrdenTrabajoEncabezado
 {
     public int IdOrdenEncabezado { get; set; }
     public int VehiculoId { get; set; }
+
+    //[INICIO][12/10/2026][Rodriale][Sede donde se atiende la orden; de aquí sale el stock que consume]
+    public int SucursalId { get; set; }
+    //[FIN][12/10/2026][Rodriale][Sede donde se atiende la orden]
+
     public DateTimeOffset FechaIngreso { get; set; }
     public DateTimeOffset? FechaFinalizacion { get; set; }
     public string? Diagnostico { get; set; }

@@ -13,12 +13,18 @@ namespace CustomCore.API.Dtos
         public EstadoPago? EstadoPago { get; init; }
         public DateTimeOffset? Desde { get; init; }
         public DateTimeOffset? Hasta { get; init; }
+
+        //[INICIO][12/10/2026][Rodriale][Filtro por sede de la orden; solo lo respeta quien ve todas]
+        [Range(1, int.MaxValue)]
+        public int? SucursalId { get; init; }
+        //[FIN][12/10/2026][Rodriale][Filtro por sede de la orden]
     }
     //[FIN][31/8/2026][Rodriale][Filtros del historial de cobros]
 
     //[INICIO][31/8/2026][Rodriale][Fila del listado de facturas]
     public record FacturaListaDto(
         int IdFacturaEncabezado,
+        int SucursalId,
         int OrdenTrabajoId,
         DateTimeOffset FechaEmision,
         string NombreFacturacion,
@@ -30,6 +36,7 @@ namespace CustomCore.API.Dtos
     //[INICIO][31/8/2026][Rodriale][La factura completa, tal como se imprime o se manda por correo]
     public record FacturaDetalleDto(
         int IdFacturaEncabezado,
+        int SucursalId,
         int OrdenTrabajoId,
         DateTimeOffset FechaEmision,
         int ClienteId,

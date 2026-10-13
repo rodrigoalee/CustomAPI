@@ -4,12 +4,13 @@ using CustomCore.API.Data;
 using CustomCore.API.Dtos;
 using CustomCore.API.Entidades;
 using CustomCore.API.Excepciones;
+using CustomCore.API.Seguridad;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace CustomCore.API.Servicios
 {
-    public sealed class FacturaService(AppDbContext db, IOptions<OpcionesFacturacion> opciones)
+    public sealed class FacturaService(AppDbContext db, IOptions<OpcionesFacturacion> opciones, SucursalActual sucursal)
     {
         private readonly OpcionesFacturacion _opciones = opciones.Value;
 
@@ -19,6 +20,12 @@ namespace CustomCore.API.Servicios
             CancellationToken cancellationToken)
         {
             var query = db.FacturasEncabezado.AsNoTracking();
+
+            //[INICIO][12/10/2026][Rodriale][La sede de la factura es la de su orden; no se duplica en la factura]
+            var filtroSucursal = await sucursal.AlcanceAsync(cancellationToken) ?? consulta.SucursalId;
+            if (filtroSucursal is { } sucursalId)
+                query = query.Where(f => f.OrdenTrabajo.SucursalId == sucursalId);
+            //[FIN][12/10/2026][Rodriale][La sede de la factura es la de su orden]
 
             if (consulta.ClienteId is { } clienteId)
                 query = query.Where(f => f.ClienteId == clienteId);
@@ -48,6 +55,7 @@ namespace CustomCore.API.Servicios
                 .Take(consulta.Tamanio)
                 .Select(f => new FacturaListaDto(
                     f.IdFacturaEncabezado,
+                    f.OrdenTrabajo.SucursalId,
                     f.OrdenTrabajoId,
                     f.FechaEmision,
                     f.NombreFacturacion,
@@ -61,12 +69,18 @@ namespace CustomCore.API.Servicios
         //[FIN][31/8/2026][Rodriale][Historial de cobros]
 
         //[INICIO][31/8/2026][Rodriale][Factura completa con sus renglones, todo en una sola consulta]
-        public Task<FacturaDetalleDto?> ObtenerPorIdAsync(int id, CancellationToken cancellationToken) =>
-            db.FacturasEncabezado
+        public async Task<FacturaDetalleDto?> ObtenerPorIdAsync(int id, CancellationToken cancellationToken)
+        {
+            //[INICIO][12/10/2026][Rodriale][Una factura de otra sede se comporta como inexistente]
+            var alcance = await sucursal.AlcanceAsync(cancellationToken);
+            //[FIN][12/10/2026][Rodriale][Una factura de otra sede se comporta como inexistente]
+
+            return await db.FacturasEncabezado
                 .AsNoTracking()
-                .Where(f => f.IdFacturaEncabezado == id)
+                .Where(f => f.IdFacturaEncabezado == id && (alcance == null || f.OrdenTrabajo.SucursalId == alcance))
                 .Select(f => new FacturaDetalleDto(
                     f.IdFacturaEncabezado,
+                    f.OrdenTrabajo.SucursalId,
                     f.OrdenTrabajoId,
                     f.FechaEmision,
                     f.ClienteId,
@@ -90,6 +104,7 @@ namespace CustomCore.API.Servicios
                             d.Subtotal))
                         .ToList()))
                 .FirstOrDefaultAsync(cancellationToken);
+        }
         //[FIN][31/8/2026][Rodriale][Factura completa con sus renglones]
 
         //[INICIO][31/8/2026][Rodriale][Emitir la factura: se copia todo de la orden y del cliente para que el documento no cambie nunca más]
@@ -100,9 +115,13 @@ namespace CustomCore.API.Servicios
             await db.BloquearFilaAsync<OrdenTrabajoEncabezado>(request.OrdenTrabajoId, cancellationToken);
             //[FIN][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
 
+            //[INICIO][12/10/2026][Rodriale][Solo se factura una orden de la propia sede; la ajena responde 404]
+            var alcance = await sucursal.AlcanceAsync(cancellationToken);
+            //[FIN][12/10/2026][Rodriale][Solo se factura una orden de la propia sede]
+
             var orden = await db.OrdenesTrabajoEncabezado
                 .AsNoTracking()
-                .Where(o => o.IdOrdenEncabezado == request.OrdenTrabajoId)
+                .Where(o => o.IdOrdenEncabezado == request.OrdenTrabajoId && (alcance == null || o.SucursalId == alcance))
                 .Select(o => new
                 {
                     o.IdOrdenEncabezado,
@@ -191,9 +210,13 @@ namespace CustomCore.API.Servicios
             await db.BloquearFilaAsync<FacturaEncabezado>(id, cancellationToken);
             //[FIN][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
 
+            //[INICIO][12/10/2026][Rodriale][Registrar el pago de una factura de otra sede responde 404]
+            var alcance = await sucursal.AlcanceAsync(cancellationToken);
+            //[FIN][12/10/2026][Rodriale][Registrar el pago de una factura de otra sede responde 404]
+
             var estado = await db.FacturasEncabezado
                 .AsNoTracking()
-                .Where(f => f.IdFacturaEncabezado == id)
+                .Where(f => f.IdFacturaEncabezado == id && (alcance == null || f.OrdenTrabajo.SucursalId == alcance))
                 .Select(f => (EstadoPago?)f.EstadoPago)
                 .FirstOrDefaultAsync(cancellationToken);
 

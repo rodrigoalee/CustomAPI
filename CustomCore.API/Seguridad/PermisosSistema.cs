@@ -72,6 +72,18 @@ public static class PermisosSistema
     public const string PagosCobrar = "pagos.cobrar";
     //[FIN][17/9/2026][jgarciad8][Permisos de facturación y pagos]
 
+    //[INICIO][12/10/2026][Rodriale][Permisos de sucursales e inventario por sede]
+    public const string SucursalesLeer = "sucursales.leer";
+    public const string SucursalesGestionar = "sucursales.gestionar";
+
+    //[INICIO][12/10/2026][Rodriale][No protege endpoints: SucursalActual lo consulta para saber si quien llama ve todas las sedes]
+    public const string SucursalesTodas = "sucursales.todas";
+    //[FIN][12/10/2026][Rodriale][No protege endpoints]
+
+    public const string InventarioLeer = "inventario.leer";
+    public const string InventarioAjustar = "inventario.ajustar";
+    //[FIN][12/10/2026][Rodriale][Permisos de sucursales e inventario por sede]
+
 
 
 }
