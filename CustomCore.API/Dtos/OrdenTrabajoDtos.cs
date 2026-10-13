@@ -13,12 +13,18 @@ namespace CustomCore.API.Dtos
         public EstadoOrdenTrabajo? Estado { get; init; }
         public DateTimeOffset? Desde { get; init; }
         public DateTimeOffset? Hasta { get; init; }
+
+        //[INICIO][12/10/2026][Rodriale][Filtro por sede; solo lo respeta quien ve todas, al empleado se le fija la suya]
+        [Range(1, int.MaxValue)]
+        public int? SucursalId { get; init; }
+        //[FIN][12/10/2026][Rodriale][Filtro por sede]
     }
     //[FIN][31/8/2026][Rodriale][Filtros del tablero de órdenes]
 
     //[INICIO][31/8/2026][Rodriale][Fila del listado: lo justo para pintar la tabla sin traer las líneas de cada orden]
     public record OrdenListaDto(
         int IdOrdenEncabezado,
+        int SucursalId,
         int VehiculoId,
         string Placa,
         string NombreCliente,
@@ -31,6 +37,7 @@ namespace CustomCore.API.Dtos
     //[INICIO][31/8/2026][Rodriale][Vista completa de la orden: encabezado, responsables y el desglose de trabajo]
     public record OrdenDetalleDto(
         int IdOrdenEncabezado,
+        int SucursalId,
         int VehiculoId,
         string Placa,
         string Marca,
@@ -83,7 +90,10 @@ namespace CustomCore.API.Dtos
         [Range(1, int.MaxValue)] int UsuarioRecepcionId,
         int? MecanicoAsignadoId,
         [MaxLength(2000)] string? Diagnostico,
-        IReadOnlyList<CrearLineaOrdenRequest> Lineas);
+        IReadOnlyList<CrearLineaOrdenRequest> Lineas,
+        //[INICIO][12/10/2026][Rodriale][Solo lo usa quien ve todas las sedes; al empleado se le asigna la suya]
+        [Range(1, int.MaxValue)] int? SucursalId = null);
+        //[FIN][12/10/2026][Rodriale][Solo lo usa quien ve todas las sedes]
     //[FIN][31/8/2026][Rodriale][Alta de la orden]
 
     //[INICIO][31/8/2026][Rodriale][Lo único editable del encabezado: el diagnóstico del mecánico y a quién se le asigna el trabajo]
