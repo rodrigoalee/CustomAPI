@@ -55,7 +55,8 @@ public sealed class UsuarioService(
                 usuario.IdUsuario,
                 usuario.NombreCompleto,
                 usuario.Correo,
-                usuario.Activo))
+                usuario.Activo,
+                usuario.SucursalId))
             .ToListAsync(cancellationToken);
 
         return new ResultadoPaginado<UsuarioResumenDto>(
@@ -78,7 +79,8 @@ public sealed class UsuarioService(
                 usuario.IdUsuario,
                 usuario.NombreCompleto,
                 usuario.Correo,
-                usuario.Activo))
+                usuario.Activo,
+                usuario.SucursalId))
             .SingleOrDefaultAsync(cancellationToken);
     }
     //[FIN][16/9/2026][jgarciad8][Consulta individual sin exponer la contraseña]
@@ -104,12 +106,17 @@ public sealed class UsuarioService(
                 "Ya existe un usuario registrado con ese correo.");
         }
 
+        //[INICIO][12/10/2026][Rodriale][Sede del empleado]
+        await ValidarSucursalAsync(request.SucursalId, cancellationToken);
+        //[FIN][12/10/2026][Rodriale][Sede del empleado]
+
         var usuario = new Usuario
         {
             NombreCompleto = request.NombreCompleto.Trim(),
             Correo = correoNormalizado,
             PasswordHash = passwordService.CrearHash(request.Password),
-            Activo = true
+            Activo = true,
+            SucursalId = request.SucursalId
         };
 
         db.Usuarios.Add(usuario);
@@ -120,7 +127,8 @@ public sealed class UsuarioService(
             usuario.IdUsuario,
             usuario.NombreCompleto,
             usuario.Correo,
-            usuario.Activo);
+            usuario.Activo,
+            usuario.SucursalId);
     }
     //[FIN][16/9/2026][jgarciad8][Creación de usuarios con contraseña BCrypt]
 
@@ -158,8 +166,16 @@ public sealed class UsuarioService(
                 "Ya existe otro usuario registrado con ese correo.");
         }
 
+        //[INICIO][12/10/2026][Rodriale][Sede del empleado]
+        await ValidarSucursalAsync(request.SucursalId, cancellationToken);
+        //[FIN][12/10/2026][Rodriale][Sede del empleado]
+
         usuario.NombreCompleto = request.NombreCompleto.Trim();
         usuario.Correo = correoNormalizado;
+
+        //[INICIO][12/10/2026][Rodriale][Sede del empleado]
+        usuario.SucursalId = request.SucursalId;
+        //[FIN][12/10/2026][Rodriale][Sede del empleado]
 
         await db.SaveChangesAsync(cancellationToken);
 
@@ -204,6 +220,17 @@ public sealed class UsuarioService(
         return true;
     }
     //[FIN][16/9/2026][jgarciad8][Activación y desactivación de cuentas]
+
+    //[INICIO][12/10/2026][Rodriale][Solo se asigna una sede que exista y esté abierta]
+    private async Task ValidarSucursalAsync(int? sucursalId, CancellationToken cancellationToken)
+    {
+        if (sucursalId is { } id &&
+            !await db.Sucursales.AsNoTracking().AnyAsync(s => s.IdSucursal == id && s.Activo, cancellationToken))
+        {
+            throw new ConflictoNegocioException("La sucursal no existe o está dada de baja.");
+        }
+    }
+    //[FIN][12/10/2026][Rodriale][Solo se asigna una sede que exista y esté abierta]
 
 }
 //[FIN][16/9/2026][jgarciad8][Servicio de consulta de usuarios]
