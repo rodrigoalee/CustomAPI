@@ -15,7 +15,7 @@ internal sealed class CambioAuditoria
     private static readonly Dictionary<Type, string[]> Campos = new()
     {
         [typeof(Usuario)] = [nameof(Usuario.IdUsuario), nameof(Usuario.NombreCompleto),
-            nameof(Usuario.Correo), nameof(Usuario.Activo)],
+            nameof(Usuario.Correo), nameof(Usuario.Activo), nameof(Usuario.SucursalId)],
         [typeof(Rol)] = [nameof(Rol.IdRol), nameof(Rol.Nombre), nameof(Rol.Descripcion)],
         [typeof(Permiso)] = [nameof(Permiso.IdPermiso), nameof(Permiso.NombreCodigo),
             nameof(Permiso.Descripcion), nameof(Permiso.Modulo)],
@@ -31,12 +31,12 @@ internal sealed class CambioAuditoria
         [typeof(Servicio)] = [nameof(Servicio.IdServicio), nameof(Servicio.Nombre), nameof(Servicio.TarifaManoObra), nameof(Servicio.Activo)],
         [typeof(Repuesto)] = [
             nameof(Repuesto.IdRepuesto), nameof(Repuesto.CodigoStock), nameof(Repuesto.Nombre),
-            nameof(Repuesto.PrecioUnitario), nameof(Repuesto.CantidadStock), nameof(Repuesto.Activo)],
+            nameof(Repuesto.PrecioUnitario), nameof(Repuesto.Activo)],
         [typeof(Cita)] = [
-            nameof(Cita.IdCita), nameof(Cita.VehiculoId), nameof(Cita.FechaHora),
+            nameof(Cita.IdCita), nameof(Cita.VehiculoId), nameof(Cita.SucursalId), nameof(Cita.FechaHora),
             nameof(Cita.DuracionMinutos), nameof(Cita.Motivo), nameof(Cita.Estado)],
         [typeof(OrdenTrabajoEncabezado)] = [
-            nameof(OrdenTrabajoEncabezado.IdOrdenEncabezado), nameof(OrdenTrabajoEncabezado.VehiculoId), nameof(OrdenTrabajoEncabezado.FechaIngreso),
+            nameof(OrdenTrabajoEncabezado.IdOrdenEncabezado), nameof(OrdenTrabajoEncabezado.VehiculoId), nameof(OrdenTrabajoEncabezado.SucursalId), nameof(OrdenTrabajoEncabezado.FechaIngreso),
             nameof(OrdenTrabajoEncabezado.FechaFinalizacion), nameof(OrdenTrabajoEncabezado.Diagnostico), nameof(OrdenTrabajoEncabezado.Estado),
             nameof(OrdenTrabajoEncabezado.TotalEstimado), nameof(OrdenTrabajoEncabezado.UsuarioRecepcionId), nameof(OrdenTrabajoEncabezado.MecanicoAsignadoId)],
         [typeof(OrdenTrabajoDetalle)] = [
@@ -51,7 +51,15 @@ internal sealed class CambioAuditoria
             nameof(FacturaEncabezado.UsuarioCajeroId)],
         [typeof(FacturaDetalle)] = [
             nameof(FacturaDetalle.IdFacturaDetalle), nameof(FacturaDetalle.FacturaId), nameof(FacturaDetalle.DescripcionItem),
-            nameof(FacturaDetalle.Cantidad), nameof(FacturaDetalle.PrecioUnitario), nameof(FacturaDetalle.Subtotal)]
+            nameof(FacturaDetalle.Cantidad), nameof(FacturaDetalle.PrecioUnitario), nameof(FacturaDetalle.Subtotal)],
+        //[INICIO][12/10/2026][Rodriale][Sedes y existencias por sede también quedan en la bitácora]
+        [typeof(Sucursal)] = [
+            nameof(Sucursal.IdSucursal), nameof(Sucursal.Nombre), nameof(Sucursal.Direccion),
+            nameof(Sucursal.Telefono), nameof(Sucursal.Activo)],
+        [typeof(InventarioSucursal)] = [
+            nameof(InventarioSucursal.IdInventario), nameof(InventarioSucursal.SucursalId),
+            nameof(InventarioSucursal.RepuestoId), nameof(InventarioSucursal.Cantidad)]
+        //[FIN][12/10/2026][Rodriale][Sedes y existencias por sede también quedan en la bitácora]
         //[FIN][5/10/2026][jgarciad8][Campos permitidos del taller y facturación; sin datos de tarjeta ni secretos Stripe]
     };
 

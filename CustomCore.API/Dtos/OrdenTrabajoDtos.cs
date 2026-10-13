@@ -83,7 +83,10 @@ namespace CustomCore.API.Dtos
         [Range(1, int.MaxValue)] int UsuarioRecepcionId,
         int? MecanicoAsignadoId,
         [MaxLength(2000)] string? Diagnostico,
-        IReadOnlyList<CrearLineaOrdenRequest> Lineas);
+        IReadOnlyList<CrearLineaOrdenRequest> Lineas,
+        //[INICIO][12/10/2026][Rodriale][Solo lo usa quien ve todas las sedes; al empleado se le asigna la suya]
+        [Range(1, int.MaxValue)] int? SucursalId = null);
+        //[FIN][12/10/2026][Rodriale][Solo lo usa quien ve todas las sedes]
     //[FIN][31/8/2026][Rodriale][Alta de la orden]
 
     //[INICIO][31/8/2026][Rodriale][Lo único editable del encabezado: el diagnóstico del mecánico y a quién se le asigna el trabajo]

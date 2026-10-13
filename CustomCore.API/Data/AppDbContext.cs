@@ -27,6 +27,7 @@ namespace CustomCore.API.Data
         public DbSet<RolPermiso> RolPermisos => Set<RolPermiso>();
         public DbSet<LogAccion> LogsAcciones => Set<LogAccion>();
         public DbSet<Sucursal> Sucursales => Set<Sucursal>();
+        public DbSet<InventarioSucursal> InventariosSucursal => Set<InventarioSucursal>();
         //[FIN][27/8/2026][Rodriale][definimos las entidades para que sean públicas para poder hacer consultas]
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
