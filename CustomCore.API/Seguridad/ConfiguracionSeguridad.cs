@@ -308,6 +308,23 @@ public static class ConfiguracionSeguridad
             }
             //[FIN][17/9/2026][jgarciad8][Políticas de facturación y pagos]
 
+            //[INICIO][12/10/2026][Rodriale][Políticas de sucursales e inventario; sucursales.todas no es política, se consulta en SucursalActual]
+            foreach (var codigo in new[]
+            {
+                PermisosSistema.SucursalesLeer,
+                PermisosSistema.SucursalesGestionar,
+                PermisosSistema.InventarioLeer,
+                PermisosSistema.InventarioAjustar
+            })
+            {
+                opciones.AddPolicy(codigo, politica =>
+                {
+                    politica.RequireAuthenticatedUser();
+                    politica.AddRequirements(new PermisoRequirement(codigo));
+                });
+            }
+            //[FIN][12/10/2026][Rodriale][Políticas de sucursales e inventario]
+
 
         });
         //[FIN][16/9/2026][jgarciad8][Políticas de autorización por permisos]
