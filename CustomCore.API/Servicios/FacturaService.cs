@@ -93,8 +93,13 @@ namespace CustomCore.API.Servicios
         //[FIN][31/8/2026][Rodriale][Factura completa con sus renglones]
 
         //[INICIO][31/8/2026][Rodriale][Emitir la factura: se copia todo de la orden y del cliente para que el documento no cambie nunca más]
-        public async Task<int?> CrearAsync(CrearFacturaRequest request, CancellationToken cancellationToken)
+        public Task<int?> CrearAsync(CrearFacturaRequest request, CancellationToken cancellationToken)
+            => db.EjecutarUnidadAuditadaAsync<int?>(async () =>
         {
+            //[INICIO][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
+            await db.BloquearFilaAsync<OrdenTrabajoEncabezado>(request.OrdenTrabajoId, cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
+
             var orden = await db.OrdenesTrabajoEncabezado
                 .AsNoTracking()
                 .Where(o => o.IdOrdenEncabezado == request.OrdenTrabajoId)
@@ -172,15 +177,20 @@ namespace CustomCore.API.Servicios
             await db.SaveChangesAsync(cancellationToken);
 
             return factura.IdFacturaEncabezado;
-        }
+        }, cancellationToken);
         //[FIN][31/8/2026][Rodriale][Emitir la factura]
 
         //[INICIO][31/8/2026][Rodriale][Registrar el cobro; una factura ya pagada no se vuelve a pagar]
-        public async Task<bool> RegistrarPagoAsync(
+        public Task<bool> RegistrarPagoAsync(
             int id,
             RegistrarPagoRequest request,
             CancellationToken cancellationToken)
+            => db.EjecutarUnidadAuditadaAsync<bool>(async () =>
         {
+            //[INICIO][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
+            await db.BloquearFilaAsync<FacturaEncabezado>(id, cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
+
             var estado = await db.FacturasEncabezado
                 .AsNoTracking()
                 .Where(f => f.IdFacturaEncabezado == id)
@@ -195,13 +205,15 @@ namespace CustomCore.API.Servicios
 
             await db.FacturasEncabezado
                 .Where(f => f.IdFacturaEncabezado == id)
-                .ExecuteUpdateAsync(s => s
+                //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                .ActualizarAuditadoAsync(db, id, s => s
                     .SetProperty(f => f.EstadoPago, EstadoPago.Pagado)
                     .SetProperty(f => f.StripePaymentId, request.StripePaymentId),
                     cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
 
             return true;
-        }
+        }, cancellationToken);
         //[FIN][31/8/2026][Rodriale][Registrar el cobro]
 
         //[INICIO][31/8/2026][Rodriale][Si el precio ya trae IVA se desglosa hacia atrás; si no, se suma encima. Se redondea a 2 decimales porque es dinero]

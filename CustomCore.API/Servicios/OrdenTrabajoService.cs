@@ -98,15 +98,14 @@ namespace CustomCore.API.Servicios
         public Task<int> CrearAsync(CrearOrdenRequest request, CancellationToken cancellationToken)
         {
             //[INICIO][31/8/2026][Rodriale][Como activamos EnableRetryOnFailure, EF exige que las transacciones manuales vayan envueltas en la estrategia de reintento; si no, revienta al abrir la transacción]
-            var estrategia = db.Database.CreateExecutionStrategy();
-            return estrategia.ExecuteAsync(() => CrearInternoAsync(request, cancellationToken));
+            //[INICIO][5/10/2026][jgarciad8][Unidad completa con verificación de COMMIT y restauración para reintentos]
+            return db.EjecutarUnidadAuditadaAsync(() => CrearInternoAsync(request, cancellationToken), cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Unidad completa con verificación de COMMIT y restauración para reintentos]
             //[FIN][31/8/2026][Rodriale][Transacción manual envuelta en la estrategia de reintento]
         }
 
         private async Task<int> CrearInternoAsync(CrearOrdenRequest request, CancellationToken cancellationToken)
         {
-            await using var transaccion = await db.Database.BeginTransactionAsync(cancellationToken);
-
             //[INICIO][31/8/2026][Rodriale][Primero se valida que todo lo pedido exista y esté activo, antes de mover una sola pieza de bodega]
             var repuestos = await CargarRepuestosAsync(request.Lineas, cancellationToken);
             var servicios = await CargarServiciosAsync(request.Lineas, cancellationToken);
@@ -147,54 +146,69 @@ namespace CustomCore.API.Servicios
             db.OrdenesTrabajoEncabezado.Add(orden);
             await db.SaveChangesAsync(cancellationToken);
 
-            await transaccion.CommitAsync(cancellationToken);
-
             return orden.IdOrdenEncabezado;
         }
         //[FIN][31/8/2026][Rodriale][Crear orden: es todo o nada]
 
         //[INICIO][31/8/2026][Rodriale][Actualizar el encabezado: notas del mecánico y a quién se le asigna. No toca líneas ni totales]
-        public async Task<bool> ActualizarAsync(
+        public Task<bool> ActualizarAsync(
             int ordenId,
             ActualizarOrdenRequest request,
             CancellationToken cancellationToken)
+            => db.EjecutarUnidadAuditadaAsync<bool>(async () =>
         {
+            //[INICIO][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
+            await db.BloquearFilaAsync<OrdenTrabajoEncabezado>(ordenId, cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
+
             if (await ExisteYNoEstaFacturadaAsync(ordenId, cancellationToken) is null)
                 return false;
 
             await db.OrdenesTrabajoEncabezado
                 .Where(o => o.IdOrdenEncabezado == ordenId)
-                .ExecuteUpdateAsync(s => s
+                //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                .ActualizarAuditadoAsync(db, ordenId, s => s
                     .SetProperty(o => o.MecanicoAsignadoId, request.MecanicoAsignadoId)
                     .SetProperty(o => o.Diagnostico, request.Diagnostico),
                     cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
 
             return true;
-        }
+        }, cancellationToken);
         //[FIN][31/8/2026][Rodriale][Actualizar el encabezado]
 
         //[INICIO][31/8/2026][Rodriale][Cambiar de estado; al finalizar se sella la fecha de salida, y si se reabre se limpia para no dejar una fecha mentirosa]
-        public async Task<bool> CambiarEstadoAsync(
+        public Task<bool> CambiarEstadoAsync(
             int ordenId,
             CambiarEstadoOrdenRequest request,
             CancellationToken cancellationToken)
+            => db.EjecutarUnidadAuditadaAsync<bool>(async () =>
         {
+            //[INICIO][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
+            var actual = await db.BloquearFilaAsync<OrdenTrabajoEncabezado>(ordenId, cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
+
             if (await ExisteYNoEstaFacturadaAsync(ordenId, cancellationToken) is null)
                 return false;
 
+            //[INICIO][5/10/2026][jgarciad8][Repetir el mismo estado no cambia la fecha ni crea otro log]
+            if (actual?.Estado == request.Estado) return true;
+            //[FIN][5/10/2026][jgarciad8][Repetir el mismo estado no cambia la fecha ni crea otro log]
             var finalizacion = request.Estado == EstadoOrdenTrabajo.Finalizado
                 ? DateTimeOffset.UtcNow
                 : (DateTimeOffset?)null;
 
             await db.OrdenesTrabajoEncabezado
                 .Where(o => o.IdOrdenEncabezado == ordenId)
-                .ExecuteUpdateAsync(s => s
+                //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                .ActualizarAuditadoAsync(db, ordenId, s => s
                     .SetProperty(o => o.Estado, request.Estado)
                     .SetProperty(o => o.FechaFinalizacion, finalizacion),
                     cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
 
             return true;
-        }
+        }, cancellationToken);
         //[FIN][31/8/2026][Rodriale][Cambiar de estado]
 
         //[INICIO][31/8/2026][Rodriale][Agregar una línea a una orden ya abierta: mismo cuidado que al crearla, transacción y descuento de stock]
@@ -203,8 +217,9 @@ namespace CustomCore.API.Servicios
             CrearLineaOrdenRequest request,
             CancellationToken cancellationToken)
         {
-            var estrategia = db.Database.CreateExecutionStrategy();
-            return estrategia.ExecuteAsync(() => AgregarLineaInternoAsync(ordenId, request, cancellationToken));
+            //[INICIO][5/10/2026][jgarciad8][Unidad completa con verificación de COMMIT y restauración para reintentos]
+            return db.EjecutarUnidadAuditadaAsync(() => AgregarLineaInternoAsync(ordenId, request, cancellationToken), cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Unidad completa con verificación de COMMIT y restauración para reintentos]
         }
 
         private async Task<int?> AgregarLineaInternoAsync(
@@ -212,8 +227,9 @@ namespace CustomCore.API.Servicios
             CrearLineaOrdenRequest request,
             CancellationToken cancellationToken)
         {
-            await using var transaccion = await db.Database.BeginTransactionAsync(cancellationToken);
-
+            //[INICIO][5/10/2026][jgarciad8][Serializa detalles y total de una misma orden]
+            await db.BloquearFilaAsync<OrdenTrabajoEncabezado>(ordenId, cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Serializa detalles y total de una misma orden]
             if (await EstaAbiertaParaEditarLineasAsync(ordenId, cancellationToken) is null)
                 return null;
 
@@ -243,8 +259,6 @@ namespace CustomCore.API.Servicios
 
             await RecalcularTotalAsync(ordenId, cancellationToken);
 
-            await transaccion.CommitAsync(cancellationToken);
-
             return linea.IdOrdenDetalle;
         }
         //[FIN][31/8/2026][Rodriale][Agregar una línea a una orden ya abierta]
@@ -255,8 +269,9 @@ namespace CustomCore.API.Servicios
             int lineaId,
             CancellationToken cancellationToken)
         {
-            var estrategia = db.Database.CreateExecutionStrategy();
-            return estrategia.ExecuteAsync(() => QuitarLineaInternoAsync(ordenId, lineaId, cancellationToken));
+            //[INICIO][5/10/2026][jgarciad8][Unidad completa con verificación de COMMIT y restauración para reintentos]
+            return db.EjecutarUnidadAuditadaAsync(() => QuitarLineaInternoAsync(ordenId, lineaId, cancellationToken), cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Unidad completa con verificación de COMMIT y restauración para reintentos]
         }
 
         private async Task<bool> QuitarLineaInternoAsync(
@@ -264,8 +279,9 @@ namespace CustomCore.API.Servicios
             int lineaId,
             CancellationToken cancellationToken)
         {
-            await using var transaccion = await db.Database.BeginTransactionAsync(cancellationToken);
-
+            //[INICIO][5/10/2026][jgarciad8][Serializa detalles y total de una misma orden]
+            await db.BloquearFilaAsync<OrdenTrabajoEncabezado>(ordenId, cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Serializa detalles y total de una misma orden]
             if (await EstaAbiertaParaEditarLineasAsync(ordenId, cancellationToken) is null)
                 return false;
 
@@ -280,7 +296,9 @@ namespace CustomCore.API.Servicios
 
             await db.OrdenesTrabajoDetalle
                 .Where(d => d.IdOrdenDetalle == lineaId)
-                .ExecuteDeleteAsync(cancellationToken);
+                //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                .EliminarAuditadoAsync(db, lineaId, cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
 
             //[INICIO][31/8/2026][Rodriale][Solo los repuestos regresan a bodega; la mano de obra no tiene existencias que devolver]
             if (linea.RepuestoId is { } repuestoId)
@@ -289,15 +307,15 @@ namespace CustomCore.API.Servicios
 
                 await db.Repuestos
                     .Where(r => r.IdRepuesto == repuestoId)
-                    .ExecuteUpdateAsync(s => s
+                    //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                    .ActualizarAuditadoAsync(db, repuestoId, s => s
                         .SetProperty(r => r.CantidadStock, r => r.CantidadStock + cantidad),
                         cancellationToken);
+                //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
             }
             //[FIN][31/8/2026][Rodriale][Solo los repuestos regresan a bodega]
 
             await RecalcularTotalAsync(ordenId, cancellationToken);
-
-            await transaccion.CommitAsync(cancellationToken);
 
             return true;
         }
@@ -356,7 +374,9 @@ namespace CustomCore.API.Servicios
 
             await db.OrdenesTrabajoEncabezado
                 .Where(o => o.IdOrdenEncabezado == ordenId)
-                .ExecuteUpdateAsync(s => s.SetProperty(o => o.TotalEstimado, total), cancellationToken);
+                //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                .ActualizarAuditadoAsync(db, ordenId, s => s.SetProperty(o => o.TotalEstimado, total), cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
         }
         //[FIN][31/8/2026][Rodriale][El total siempre se recalcula desde las líneas]
 
@@ -439,13 +459,17 @@ namespace CustomCore.API.Servicios
                 .ToDictionary(g => g.Key, g => g.Sum(l => l.Cantidad));
             //[FIN][31/8/2026][Rodriale][Si el mismo repuesto viene en varias líneas, se suma primero]
 
-            foreach (var (repuestoId, cantidad) in consumoPorRepuesto)
+            //[INICIO][5/10/2026][jgarciad8][Orden estable de bloqueos de inventario]
+            foreach (var (repuestoId, cantidad) in consumoPorRepuesto.OrderBy(p => p.Key))
+            //[FIN][5/10/2026][jgarciad8][Orden estable de bloqueos de inventario]
             {
                 var filasAfectadas = await db.Repuestos
                     .Where(r => r.IdRepuesto == repuestoId && r.CantidadStock >= cantidad)
-                    .ExecuteUpdateAsync(s => s
+                    //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                    .ActualizarAuditadoAsync(db, repuestoId, s => s
                         .SetProperty(r => r.CantidadStock, r => r.CantidadStock - cantidad),
                         cancellationToken);
+                //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
 
                 if (filasAfectadas == 0)
                     throw new ConflictoNegocioException(

@@ -246,10 +246,12 @@ namespace CustomCore.API.Servicios
         {
             var filasAfectadas = await db.FacturasEncabezado
                 .Where(f => f.IdFacturaEncabezado == facturaId && f.EstadoPago != EstadoPago.Pagado)
-                .ExecuteUpdateAsync(s => s
+                //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                .ActualizarAuditadoAsync(db, facturaId, s => s
                     .SetProperty(f => f.EstadoPago, EstadoPago.Pagado)
                     .SetProperty(f => f.StripePaymentId, idPago),
                     cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
 
             if (filasAfectadas > 0)
                 logger.LogInformation("Factura {Factura} marcada como pagada con {Pago}", facturaId, idPago);
