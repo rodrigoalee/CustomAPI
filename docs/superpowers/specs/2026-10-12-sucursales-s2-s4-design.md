@@ -78,7 +78,7 @@ Todo el SQL de datos usa `migrationBuilder.Sql` con identificadores entre comill
 
 ## 4. `SucursalActual`
 
-Clase en `Seguridad/SucursalActual.cs`, registrada con `AddScoped` junto con `AddHttpContextAccessor()` en `Program.cs`. Depende de `IHttpContextAccessor` y de `AppDbContext`.
+Clase en `Seguridad/SucursalActual.cs`, registrada con `AddScoped` en `Program.cs` (`AddHttpContextAccessor()` ya está registrado por la auditoría). Depende de `IHttpContextAccessor` y de `AppDbContext`.
 
 En la primera llamada de una petición hace **una sola consulta**:
 
