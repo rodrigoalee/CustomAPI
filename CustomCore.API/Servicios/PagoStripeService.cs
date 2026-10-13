@@ -4,6 +4,7 @@ using CustomCore.API.Data;
 using CustomCore.API.Dtos;
 using CustomCore.API.Entidades;
 using CustomCore.API.Excepciones;
+using CustomCore.API.Seguridad;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Stripe;
@@ -24,6 +25,7 @@ namespace CustomCore.API.Servicios
         AppDbContext db,
         IStripeClient stripe,
         IOptions<OpcionesStripe> opciones,
+        SucursalActual sucursal,
         ILogger<PagoStripeService> logger)
     {
         private const string EventoSesionCompletada = "checkout.session.completed";
@@ -208,9 +210,13 @@ namespace CustomCore.API.Servicios
         //[INICIO][16/9/2026][Rodriale][Valida que la factura exista y no esté pagada antes de pedirle nada a Stripe]
         private async Task<FacturaCobrable?> ObtenerFacturaPendienteAsync(int facturaId, CancellationToken cancellationToken)
         {
+            //[INICIO][12/10/2026][Rodriale][Cobrar una factura de otra sede responde 404; el webhook no pasa por aquí]
+            var alcance = await sucursal.AlcanceAsync(cancellationToken);
+            //[FIN][12/10/2026][Rodriale][Cobrar una factura de otra sede responde 404]
+
             var factura = await db.FacturasEncabezado
                 .AsNoTracking()
-                .Where(f => f.IdFacturaEncabezado == facturaId)
+                .Where(f => f.IdFacturaEncabezado == facturaId && (alcance == null || f.OrdenTrabajo.SucursalId == alcance))
                 .Select(f => new
                 {
                     Datos = new FacturaCobrable(
