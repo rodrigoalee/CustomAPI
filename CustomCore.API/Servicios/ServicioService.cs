@@ -70,11 +70,13 @@ namespace CustomCore.API.Servicios
         {
             var filasAfectadas = await db.Servicios
                 .Where(s => s.IdServicio == id)
-                .ExecuteUpdateAsync(p => p
+                //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                .ActualizarAuditadoAsync(db, id, p => p
                     .SetProperty(s => s.Nombre, request.Nombre)
                     .SetProperty(s => s.TarifaManoObra, request.TarifaManoObra)
                     .SetProperty(s => s.Activo, request.Activo),
                     cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
 
             return filasAfectadas > 0;
         }
@@ -84,7 +86,9 @@ namespace CustomCore.API.Servicios
         {
             var filasAfectadas = await db.Servicios
                 .Where(s => s.IdServicio == id)
-                .ExecuteUpdateAsync(p => p.SetProperty(s => s.Activo, false), cancellationToken);
+                //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                .ActualizarAuditadoAsync(db, id, p => p.SetProperty(s => s.Activo, false), cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
 
             return filasAfectadas > 0;
         }

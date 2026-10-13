@@ -104,11 +104,16 @@ namespace CustomCore.API.Servicios
             return cita.IdCita;
         }
 
-        public async Task<bool> ReprogramarAsync(
+        public Task<bool> ReprogramarAsync(
             int id,
             ReprogramarCitaRequest request,
             CancellationToken cancellationToken)
+            => db.EjecutarUnidadAuditadaAsync<bool>(async () =>
         {
+            //[INICIO][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
+            await db.BloquearFilaAsync<Cita>(id, cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
+
             var cita = await db.Citas
                 .AsNoTracking()
                 .Where(c => c.IdCita == id)
@@ -133,14 +138,16 @@ namespace CustomCore.API.Servicios
 
             await db.Citas
                 .Where(c => c.IdCita == id)
-                .ExecuteUpdateAsync(s => s
+                //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                .ActualizarAuditadoAsync(db, id, s => s
                     .SetProperty(c => c.FechaHora, request.FechaHora)
                     .SetProperty(c => c.DuracionMinutos, request.DuracionMinutos)
                     .SetProperty(c => c.Motivo, request.Motivo),
                     cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
 
             return true;
-        }
+        }, cancellationToken);
 
         public async Task<bool> CambiarEstadoAsync(
             int id,
@@ -149,7 +156,9 @@ namespace CustomCore.API.Servicios
         {
             var filasAfectadas = await db.Citas
                 .Where(c => c.IdCita == id)
-                .ExecuteUpdateAsync(s => s.SetProperty(c => c.Estado, request.Estado), cancellationToken);
+                //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                .ActualizarAuditadoAsync(db, id, s => s.SetProperty(c => c.Estado, request.Estado), cancellationToken);
+            //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
 
             return filasAfectadas > 0;
         }
