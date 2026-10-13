@@ -21,6 +21,12 @@ namespace CustomCore.API.Servicios
         {
             var query = db.OrdenesTrabajoEncabezado.AsNoTracking();
 
+            //[INICIO][12/10/2026][Rodriale][El empleado solo ve su sede aunque pida otra; quien ve todas puede filtrar]
+            var filtroSucursal = await sucursal.AlcanceAsync(cancellationToken) ?? consulta.SucursalId;
+            if (filtroSucursal is { } sucursalId)
+                query = query.Where(o => o.SucursalId == sucursalId);
+            //[FIN][12/10/2026][Rodriale][El empleado solo ve su sede]
+
             if (consulta.VehiculoId is { } vehiculoId)
                 query = query.Where(o => o.VehiculoId == vehiculoId);
 
@@ -51,6 +57,7 @@ namespace CustomCore.API.Servicios
                 .Take(consulta.Tamanio)
                 .Select(o => new OrdenListaDto(
                     o.IdOrdenEncabezado,
+                    o.SucursalId,
                     o.VehiculoId,
                     o.Vehiculo.Placa,
                     o.Vehiculo.Cliente.NombreCompleto,
@@ -65,12 +72,18 @@ namespace CustomCore.API.Servicios
         //[FIN][31/8/2026][Rodriale][Listado del tablero]
 
         //[INICIO][31/8/2026][Rodriale][Detalle completo en una sola consulta: orden, vehículo, dueño, responsables y líneas, sin caer en N+1]
-        public Task<OrdenDetalleDto?> ObtenerPorIdAsync(int id, CancellationToken cancellationToken) =>
-            db.OrdenesTrabajoEncabezado
+        public async Task<OrdenDetalleDto?> ObtenerPorIdAsync(int id, CancellationToken cancellationToken)
+        {
+            //[INICIO][12/10/2026][Rodriale][Una orden de otra sede se comporta como inexistente]
+            var alcance = await sucursal.AlcanceAsync(cancellationToken);
+            //[FIN][12/10/2026][Rodriale][Una orden de otra sede se comporta como inexistente]
+
+            return await db.OrdenesTrabajoEncabezado
                 .AsNoTracking()
-                .Where(o => o.IdOrdenEncabezado == id)
+                .Where(o => o.IdOrdenEncabezado == id && (alcance == null || o.SucursalId == alcance))
                 .Select(o => new OrdenDetalleDto(
                     o.IdOrdenEncabezado,
+                    o.SucursalId,
                     o.VehiculoId,
                     o.Vehiculo.Placa,
                     o.Vehiculo.Marca,
@@ -97,6 +110,7 @@ namespace CustomCore.API.Servicios
                             d.SubtotalEstimado))
                         .ToList()))
                 .FirstOrDefaultAsync(cancellationToken);
+        }
         //[FIN][31/8/2026][Rodriale][Detalle completo en una sola consulta]
 
         //[INICIO][31/8/2026][Rodriale][Crear orden: es todo o nada, si una línea se cae por stock no queda ni la orden ni el descuento]
@@ -114,6 +128,8 @@ namespace CustomCore.API.Servicios
             //[INICIO][12/10/2026][Rodriale][La sede se decide antes de mover stock: de ella sale lo que se descuenta]
             var sucursalId = await sucursal.ResolverAsync(request.SucursalId, cancellationToken);
             //[FIN][12/10/2026][Rodriale][La sede se decide antes de mover stock]
+
+            await ValidarMecanicoAsync(request.MecanicoAsignadoId, sucursalId, cancellationToken);
 
             //[INICIO][31/8/2026][Rodriale][Primero se valida que todo lo pedido exista y esté activo, antes de mover una sola pieza de bodega]
             var repuestos = await CargarRepuestosAsync(request.Lineas, cancellationToken);
@@ -171,8 +187,11 @@ namespace CustomCore.API.Servicios
             await db.BloquearFilaAsync<OrdenTrabajoEncabezado>(ordenId, cancellationToken);
             //[FIN][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
 
-            if (await ExisteYNoEstaFacturadaAsync(ordenId, cancellationToken) is null)
+            var orden = await ExisteYNoEstaFacturadaAsync(ordenId, cancellationToken);
+            if (orden is null)
                 return false;
+
+            await ValidarMecanicoAsync(request.MecanicoAsignadoId, orden.SucursalId, cancellationToken);
 
             await db.OrdenesTrabajoEncabezado
                 .Where(o => o.IdOrdenEncabezado == ordenId)
@@ -334,9 +353,13 @@ namespace CustomCore.API.Servicios
             int ordenId,
             CancellationToken cancellationToken)
         {
+            //[INICIO][12/10/2026][Rodriale][Editar una orden de otra sede responde 404, igual que si no existiera]
+            var alcance = await sucursal.AlcanceAsync(cancellationToken);
+            //[FIN][12/10/2026][Rodriale][Editar una orden de otra sede responde 404]
+
             var info = await db.OrdenesTrabajoEncabezado
                 .AsNoTracking()
-                .Where(o => o.IdOrdenEncabezado == ordenId)
+                .Where(o => o.IdOrdenEncabezado == ordenId && (alcance == null || o.SucursalId == alcance))
                 .Select(o => new
                 {
                     o.Estado,
@@ -388,6 +411,25 @@ namespace CustomCore.API.Servicios
             //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
         }
         //[FIN][31/8/2026][Rodriale][El total siempre se recalcula desde las líneas]
+
+        //[INICIO][12/10/2026][Rodriale][El mecánico asignado tiene que trabajar en la sede de la orden]
+        private async Task ValidarMecanicoAsync(
+            int? mecanicoId,
+            int sucursalId,
+            CancellationToken cancellationToken)
+        {
+            if (mecanicoId is not { } id)
+                return;
+
+            var esDeLaSede = await db.Usuarios
+                .AsNoTracking()
+                .AnyAsync(u => u.IdUsuario == id && u.Activo && u.SucursalId == sucursalId, cancellationToken);
+
+            if (!esDeLaSede)
+                throw new ConflictoNegocioException(
+                    "El mecánico asignado no existe, está inactivo o no pertenece a la sucursal de la orden.");
+        }
+        //[FIN][12/10/2026][Rodriale][El mecánico asignado tiene que trabajar en la sede de la orden]
 
         //[INICIO][31/8/2026][Rodriale][Trae de un solo golpe los repuestos pedidos y reclama si alguno no existe o está dado de baja]
         private async Task<Dictionary<int, (string Nombre, decimal PrecioUnitario)>> CargarRepuestosAsync(
