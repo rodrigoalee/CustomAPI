@@ -11,7 +11,7 @@ namespace CustomCore.API.Servicios
     public sealed class OrdenTrabajoService(AppDbContext db, SucursalActual sucursal)
     {
         //[INICIO][12/10/2026][Rodriale][Lo que hace falta saber de una orden antes de tocarla]
-        private sealed record OrdenEditable(EstadoOrdenTrabajo Estado, int SucursalId);
+        private sealed record OrdenEditable(EstadoOrdenTrabajo Estado, int SucursalId, int? MecanicoAsignadoId);
         //[FIN][12/10/2026][Rodriale][Lo que hace falta saber de una orden antes de tocarla]
 
         //[INICIO][31/8/2026][Rodriale][Listado del tablero: filtros opcionales que se van encadenando solo si vienen]
@@ -191,7 +191,10 @@ namespace CustomCore.API.Servicios
             if (orden is null)
                 return false;
 
-            await ValidarMecanicoAsync(request.MecanicoAsignadoId, orden.SucursalId, cancellationToken);
+            //[INICIO][12/10/2026][Rodriale][Solo se valida si cambia: un mecánico ya asignado que luego cambió de sede no debe bloquear editar el diagnóstico]
+            if (request.MecanicoAsignadoId != orden.MecanicoAsignadoId)
+                await ValidarMecanicoAsync(request.MecanicoAsignadoId, orden.SucursalId, cancellationToken);
+            //[FIN][12/10/2026][Rodriale][Solo se valida si cambia]
 
             await db.OrdenesTrabajoEncabezado
                 .Where(o => o.IdOrdenEncabezado == ordenId)
@@ -364,6 +367,7 @@ namespace CustomCore.API.Servicios
                 {
                     o.Estado,
                     o.SucursalId,
+                    o.MecanicoAsignadoId,
                     TieneFactura = db.FacturasEncabezado.Any(f => f.OrdenTrabajoId == o.IdOrdenEncabezado)
                 })
                 .FirstOrDefaultAsync(cancellationToken);
@@ -375,7 +379,7 @@ namespace CustomCore.API.Servicios
                 throw new ConflictoNegocioException(
                     "La orden ya fue facturada y no admite cambios.");
 
-            return new OrdenEditable(info.Estado, info.SucursalId);
+            return new OrdenEditable(info.Estado, info.SucursalId, info.MecanicoAsignadoId);
         }
         //[FIN][31/8/2026][Rodriale][Una orden ya facturada es intocable]
 

@@ -54,24 +54,24 @@ namespace CustomCore.API.Data.Migrations
             }
             //[FIN][12/10/2026][Rodriale][1. Estructura nueva]
 
-            //[INICIO][12/10/2026][Rodriale][2-4. Sede por defecto y traslado: el stock actual pasa a esa sede, junto con órdenes, citas y empleados (no los Gerentes)]
+            //[INICIO][12/10/2026][Rodriale][2-4. Sede por defecto (la activa de menor id, para no mandar todo a una sede cerrada) y traslado: el stock actual pasa a esa sede, junto con órdenes, citas y empleados (no los Gerentes)]
             migrationBuilder.Sql("""
                 INSERT INTO customcore."Sucursales" ("Nombre", "Direccion", "Activo")
                 SELECT 'Central', 'Por definir', TRUE
                 WHERE NOT EXISTS (SELECT 1 FROM customcore."Sucursales");
 
                 INSERT INTO customcore."InventariosSucursal" ("SucursalId", "RepuestoId", "Cantidad")
-                SELECT (SELECT MIN("IdSucursal") FROM customcore."Sucursales"), r."IdRepuesto", r."CantidadStock"
+                SELECT (SELECT "IdSucursal" FROM customcore."Sucursales" ORDER BY "Activo" DESC, "IdSucursal" LIMIT 1), r."IdRepuesto", r."CantidadStock"
                 FROM customcore."Repuestos" r;
 
                 UPDATE customcore."OrdenesTrabajoEncabezado"
-                SET "SucursalId" = (SELECT MIN("IdSucursal") FROM customcore."Sucursales");
+                SET "SucursalId" = (SELECT "IdSucursal" FROM customcore."Sucursales" ORDER BY "Activo" DESC, "IdSucursal" LIMIT 1);
 
                 UPDATE customcore."Citas"
-                SET "SucursalId" = (SELECT MIN("IdSucursal") FROM customcore."Sucursales");
+                SET "SucursalId" = (SELECT "IdSucursal" FROM customcore."Sucursales" ORDER BY "Activo" DESC, "IdSucursal" LIMIT 1);
 
                 UPDATE customcore."Usuarios" u
-                SET "SucursalId" = (SELECT MIN("IdSucursal") FROM customcore."Sucursales")
+                SET "SucursalId" = (SELECT "IdSucursal" FROM customcore."Sucursales" ORDER BY "Activo" DESC, "IdSucursal" LIMIT 1)
                 WHERE NOT EXISTS (
                     SELECT 1
                     FROM customcore."UsuarioRoles" ur
