@@ -13,8 +13,37 @@ namespace CustomCore.API.Controllers;
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class AuthController(
     AuthService servicio,
-    RegistroService registroService) : ControllerBase
+    RegistroService registroService,
+    CuentaGoogleService cuentaGoogleService) : ControllerBase
 {
+    //[INICIO][23/10/2026][Rodriale][Login con Google. Sin la política "registro" a propósito: reparte por IP y todas las llamadas llegan desde el servidor de Vercel, así que los clientes legítimos se limitarían entre sí. No agregarla por simetría]
+    [AllowAnonymous]
+    [HttpPost("google")]
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<LoginResponse>> IniciarSesionConGoogle(
+        GoogleLoginRequest request,
+        CancellationToken cancellationToken)
+    {
+        var respuesta = await cuentaGoogleService.IniciarSesionAsync(
+            request,
+            cancellationToken);
+
+        if (respuesta is null)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                title: "No se pudo iniciar sesión con Google",
+                detail: "No pudimos verificar tu cuenta de Google. Intenta de nuevo.");
+        }
+
+        return Ok(respuesta);
+    }
+    //[FIN][23/10/2026][Rodriale][Login con Google]
+
     //[INICIO][14/10/2026][Rodriale][Alta pública del portal: anónima por necesidad, con techo de intentos por IP]
     [AllowAnonymous]
     [EnableRateLimiting("registro")]

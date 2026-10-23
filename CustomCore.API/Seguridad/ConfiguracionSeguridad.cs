@@ -63,6 +63,21 @@ public static class ConfiguracionSeguridad
         var claveFirma = new SymmetricSecurityKey(bytesClave);
         //[FIN][16/9/2026][jgarciad8][Lectura y validación de la configuración JWT]
 
+        //[INICIO][23/10/2026][Rodriale][Falla al arrancar como Jwt y Stripe: una API que acepta id_token de Google sin saber para quién se emitieron es peor que una que no arranca]
+        var opcionesGoogle = configuracion
+            .GetSection(OpcionesGoogle.Seccion)
+            .Get<OpcionesGoogle>();
+
+        if (opcionesGoogle is null || string.IsNullOrWhiteSpace(opcionesGoogle.ClientId))
+        {
+            throw new InvalidOperationException(
+                "Debes configurar Google:ClientId.");
+        }
+
+        servicios.AddSingleton(opcionesGoogle);
+        servicios.AddScoped<CuentaGoogleService>();
+        //[FIN][23/10/2026][Rodriale][Falla al arrancar como Jwt y Stripe]
+
         //[INICIO][16/9/2026][jgarciad8][Registro de servicios de seguridad]
         servicios.AddSingleton<PasswordService>();
         servicios.AddSingleton(new JwtService(opcionesJwt, claveFirma));
