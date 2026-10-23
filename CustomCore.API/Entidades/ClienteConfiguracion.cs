@@ -17,7 +17,9 @@ public sealed class ClienteConfiguration : IEntityTypeConfiguration<Cliente>
         builder.Property(c => c.Correo).HasMaxLength(100).IsRequired();
         builder.Property(c => c.Nit).HasMaxLength(20);
 
-        builder.HasIndex(c => c.Correo);
+        //[INICIO][14/10/2026][Rodriale][Único: el correo identifica al cliente en el portal, dos fichas con el mismo correo harían ambiguo el registro]
+        builder.HasIndex(c => c.Correo).IsUnique();
+        //[FIN][14/10/2026][Rodriale][Único: el correo identifica al cliente en el portal]
     }
 }
 //[FIN][28/8/2026][Rodriale][Mapeo de Cliente a la tabla Clientes]

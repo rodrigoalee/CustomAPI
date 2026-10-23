@@ -93,7 +93,8 @@ namespace CustomCore.API.Data.Migrations
 
                     b.HasKey("IdCliente");
 
-                    b.HasIndex("Correo");
+                    b.HasIndex("Correo")
+                        .IsUnique();
 
                     b.ToTable("Clientes", "customcore");
                 });
@@ -558,10 +559,17 @@ namespace CustomCore.API.Data.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(true);
 
+                    b.Property<int?>("ClienteId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Correo")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<string>("GoogleId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
 
                     b.Property<string>("NombreCompleto")
                         .IsRequired()
@@ -569,20 +577,35 @@ namespace CustomCore.API.Data.Migrations
                         .HasColumnType("character varying(150)");
 
                     b.Property<string>("PasswordHash")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int?>("SucursalId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("VersionCredenciales")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.HasKey("IdUsuario");
+
+                    b.HasIndex("ClienteId")
+                        .IsUnique()
+                        .HasFilter("\"ClienteId\" IS NOT NULL");
 
                     b.HasIndex("Correo")
                         .IsUnique();
 
+                    b.HasIndex("GoogleId")
+                        .IsUnique()
+                        .HasFilter("\"GoogleId\" IS NOT NULL");
+
                     b.HasIndex("SucursalId");
 
-                    b.ToTable("Usuarios", "customcore");
+                    b.ToTable("Usuarios", "customcore", t =>
+                        {
+                            t.HasCheckConstraint("CK_Usuarios_AlMenosUnaCredencial", "\"PasswordHash\" IS NOT NULL OR \"GoogleId\" IS NOT NULL");
+                        });
                 });
 
             modelBuilder.Entity("CustomCore.API.Entidades.UsuarioRol", b =>
@@ -797,6 +820,11 @@ namespace CustomCore.API.Data.Migrations
 
             modelBuilder.Entity("CustomCore.API.Entidades.Usuario", b =>
                 {
+                    b.HasOne("CustomCore.API.Entidades.Cliente", null)
+                        .WithMany()
+                        .HasForeignKey("ClienteId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("CustomCore.API.Entidades.Sucursal", null)
                         .WithMany()
                         .HasForeignKey("SucursalId")
