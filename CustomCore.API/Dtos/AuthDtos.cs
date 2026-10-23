@@ -97,4 +97,11 @@ public record RegistroRequest(
 }
 //[FIN][14/10/2026][Rodriale][Alta pública del cliente]
 
+//[INICIO][23/10/2026][Rodriale][El id_token que el front recibe de Google; ronda el kilobyte y el techo evita cuerpos enormes]
+public record GoogleLoginRequest(
+    [Required(ErrorMessage = "El id_token es obligatorio.")]
+    [MaxLength(4096, ErrorMessage = "El id_token no puede superar los 4096 caracteres.")]
+    string IdToken);
+//[FIN][23/10/2026][Rodriale][El id_token que el front recibe de Google]
+
 //[FIN][16/9/2026][jgarciad8][DTOs para autenticación y consulta del usuario actual]
