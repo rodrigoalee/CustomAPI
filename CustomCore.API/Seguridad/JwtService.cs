@@ -18,7 +18,7 @@ public sealed class JwtService(
 
     public LoginResponse CrearToken(
         UsuarioSesionDto usuario,
-        string passwordHash)
+        string versionCredenciales)
     {
         var ahora = DateTimeOffset.UtcNow;
         var expiracion = ahora.AddMinutes(opciones.DuracionMinutos);
@@ -33,7 +33,7 @@ public sealed class JwtService(
                 Guid.NewGuid().ToString("N")),
             new Claim(
                 ClaimVersionCredenciales,
-                CrearVersionCredenciales(usuario.IdUsuario, passwordHash))
+                CrearVersionCredenciales(usuario.IdUsuario, versionCredenciales))
         };
 
         var token = new JwtSecurityToken(
@@ -55,12 +55,12 @@ public sealed class JwtService(
 
     private string CrearVersionCredenciales(
         int idUsuario,
-        string passwordHash)
+        string versionCredenciales)
     {
         var datos = Encoding.UTF8.GetBytes(
-            "credenciales-v1:" +
+            "credenciales-v2:" +
             idUsuario.ToString(CultureInfo.InvariantCulture) +
-            ":" + passwordHash);
+            ":" + versionCredenciales);
 
         var marca = HMACSHA256.HashData(claveFirma.Key, datos);
 
@@ -70,12 +70,12 @@ public sealed class JwtService(
     public bool CoincideVersionCredenciales(
         string? version,
         int idUsuario,
-        string passwordHash)
+        string versionCredenciales)
     {
         if (string.IsNullOrEmpty(version))
             return false;
 
-        var esperada = CrearVersionCredenciales(idUsuario, passwordHash);
+        var esperada = CrearVersionCredenciales(idUsuario, versionCredenciales);
 
         if (version.Length != esperada.Length)
             return false;

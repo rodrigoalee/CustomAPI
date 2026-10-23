@@ -4,14 +4,35 @@ using CustomCore.API.Dtos;
 using CustomCore.API.Servicios;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace CustomCore.API.Controllers;
 
 [ApiController]
 [Route("api/auth")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class AuthController(AuthService servicio) : ControllerBase
+public sealed class AuthController(
+    AuthService servicio,
+    RegistroService registroService) : ControllerBase
 {
+    //[INICIO][14/10/2026][Rodriale][Alta pública del portal: anónima por necesidad, con techo de intentos por IP]
+    [AllowAnonymous]
+    [EnableRateLimiting("registro")]
+    [HttpPost("registro")]
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<LoginResponse>> Registrar(
+        RegistroRequest request,
+        CancellationToken cancellationToken)
+    {
+        //[INICIO][14/10/2026][Rodriale][200 y no 201: lo que devolvemos es la sesión, no un recurso que el cliente pueda consultar por URL]
+        return Ok(await registroService.RegistrarAsync(request, cancellationToken));
+        //[FIN][14/10/2026][Rodriale][200 y no 201]
+    }
+    //[FIN][14/10/2026][Rodriale][Alta pública del portal]
+
     //[INICIO][16/9/2026][jgarciad8][Endpoint público para iniciar sesión]
     [AllowAnonymous]
     [HttpPost("login")]
