@@ -104,4 +104,13 @@ public record GoogleLoginRequest(
     string IdToken);
 //[FIN][23/10/2026][Rodriale][El id_token que el front recibe de Google]
 
+//[INICIO][23/10/2026][Rodriale][Completar el perfil de una cuenta de Google: mismas reglas de teléfono que el registro, E.164 porque lo exige WhatsApp]
+public record CompletarPerfilRequest(
+    [Required(ErrorMessage = "El teléfono es obligatorio.")]
+    [RegularExpression(@"^\+[1-9]\d{7,14}$",
+        ErrorMessage = "El teléfono debe incluir el código de país, por ejemplo +50255551234.")]
+    [MaxLength(20, ErrorMessage = "El teléfono no puede superar los 20 caracteres.")]
+    string Telefono);
+//[FIN][23/10/2026][Rodriale][Completar el perfil de una cuenta de Google]
+
 //[FIN][16/9/2026][jgarciad8][DTOs para autenticación y consulta del usuario actual]

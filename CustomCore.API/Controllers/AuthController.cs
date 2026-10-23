@@ -44,6 +44,33 @@ public sealed class AuthController(
     }
     //[FIN][23/10/2026][Rodriale][Login con Google]
 
+    //[INICIO][23/10/2026][Rodriale][Completar el perfil tras el alta por Google: el teléfono crea la ficha del taller]
+    [Authorize]
+    [HttpPost("perfil")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CompletarPerfil(
+        CompletarPerfilRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!int.TryParse(
+            User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value,
+            out var idUsuario)
+            || idUsuario <= 0)
+        {
+            return Unauthorized();
+        }
+
+        await cuentaGoogleService.CompletarPerfilAsync(
+            idUsuario, request, cancellationToken);
+
+        return NoContent();
+    }
+    //[FIN][23/10/2026][Rodriale][Completar el perfil tras el alta por Google]
+
     //[INICIO][14/10/2026][Rodriale][Alta pública del portal: anónima por necesidad, con techo de intentos por IP]
     [AllowAnonymous]
     [EnableRateLimiting("registro")]

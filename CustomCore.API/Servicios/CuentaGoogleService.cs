@@ -170,6 +170,89 @@ public sealed class CuentaGoogleService(
         //[FIN][23/10/2026][Rodriale][Nombre y correo salen de la base]
     }
 
+    //[INICIO][23/10/2026][Rodriale][Crea la ficha del taller que la cuenta de Google no pudo tener al nacer, y la vincula]
+    public async Task CompletarPerfilAsync(
+        int idUsuario,
+        CompletarPerfilRequest request,
+        CancellationToken cancellationToken)
+    {
+        var usuario = await db.Usuarios
+            .AsNoTracking()
+            .Where(u => u.IdUsuario == idUsuario)
+            .Select(u => new
+            {
+                u.Activo,
+                u.ClienteId,
+                u.NombreCompleto,
+                u.Correo,
+                TieneRolCliente = u.UsuarioRoles.Any(ur => ur.Rol.Nombre == RegistroService.RolCliente),
+                TieneOtroRol = u.UsuarioRoles.Any(ur => ur.Rol.Nombre != RegistroService.RolCliente)
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (usuario is null || !usuario.Activo || usuario.ClienteId is not null)
+        {
+            throw new ConflictoNegocioException("Tu perfil ya está completo.");
+        }
+
+        //[INICIO][23/10/2026][Rodriale][Perfil incompleto es rol Cliente puro con ClienteId nulo; una cuenta del taller no se convierte en cliente por esta vía]
+        if (!usuario.TieneRolCliente || usuario.TieneOtroRol)
+        {
+            throw new AccesoDenegadoException(
+                "Solo las cuentas de cliente completan su perfil desde el portal.");
+        }
+        //[FIN][23/10/2026][Rodriale][Perfil incompleto es rol Cliente puro con ClienteId nulo]
+
+        //[INICIO][23/10/2026][Rodriale][El taller pudo crear una ficha con este correo después del alta por Google. No se vincula sola (misma regla que el registro); el front ofrece cerrar sesión para que nadie quede encerrado en el formulario]
+        if (await db.Clientes.AsNoTracking()
+                .AnyAsync(c => c.Correo == usuario.Correo, cancellationToken))
+        {
+            throw new ConflictoNegocioException(
+                "Ese correo ya está registrado en el taller. Comunícate con nosotros para activar tu acceso.");
+        }
+        //[FIN][23/10/2026][Rodriale][El taller pudo crear una ficha con este correo]
+
+        //[INICIO][23/10/2026][Rodriale][La estrategia de reintentos de Npgsql exige envolver así las transacciones explícitas]
+        var estrategia = db.Database.CreateExecutionStrategy();
+
+        await estrategia.ExecuteAsync(async () =>
+        {
+            await using var transaccion =
+                await db.Database.BeginTransactionAsync(cancellationToken);
+
+            var cliente = new Cliente
+            {
+                NombreCompleto = usuario.NombreCompleto,
+                Telefono = request.Telefono.Trim(),
+                Correo = usuario.Correo,
+                Nit = null
+            };
+
+            db.Clientes.Add(cliente);
+            await db.SaveChangesAsync(cancellationToken);
+
+            //[INICIO][23/10/2026][Rodriale][Condicionado a que siga activa y sin ficha: si otra petición la completó o la inhabilitaron, se deshace la ficha recién creada]
+            var filas = await db.Usuarios
+                .Where(u =>
+                    u.IdUsuario == idUsuario
+                    && u.Activo
+                    && u.ClienteId == null)
+                .ActualizarAuditadoAsync(db, idUsuario,
+                    cambios => cambios.SetProperty(u => u.ClienteId, cliente.IdCliente),
+                    cancellationToken);
+
+            if (filas != 1)
+            {
+                throw new ConflictoNegocioException("Tu perfil ya está completo.");
+            }
+            //[FIN][23/10/2026][Rodriale][Condicionado a que siga activa y sin ficha]
+
+            await transaccion.CommitAsync(cancellationToken);
+        });
+        //[FIN][23/10/2026][Rodriale][La estrategia de reintentos de Npgsql exige envolver así las transacciones explícitas]
+    }
+    //[FIN][23/10/2026][Rodriale][Crea la ficha del taller que la cuenta de Google no pudo tener al nacer]
+
     private async Task<LoginResponse> CrearCuentaAsync(
         IdentidadGoogle identidad,
         CancellationToken cancellationToken)
