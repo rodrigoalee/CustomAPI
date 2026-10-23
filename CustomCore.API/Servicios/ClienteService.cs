@@ -2,6 +2,7 @@
 using CustomCore.API.Data;
 using CustomCore.API.Dtos;
 using CustomCore.API.Entidades;
+using CustomCore.API.Excepciones;
 using Microsoft.EntityFrameworkCore;
 
 namespace CustomCore.API.Servicios
@@ -59,14 +60,20 @@ namespace CustomCore.API.Servicios
             .FirstOrDefaultAsync(cancellationToken);
         //[FIN][28/8/2026][Rodriale][Detalle y vehículos en una sola consulta para evitar N+1]
 
+        //[INICIO][14/10/2026][Rodriale][El correo se normaliza y se valida antes: así el 409 lleva mensaje claro en vez de un error crudo de Postgres]
         public async Task<int> CrearAsync(CrearClienteRequest request, CancellationToken cancellationToken)
         {
+            var correo = request.Correo.Trim().ToLowerInvariant();
+
+            if (await db.Clientes.AsNoTracking().AnyAsync(c => c.Correo == correo, cancellationToken))
+                throw new ConflictoNegocioException("Ya existe un cliente registrado con ese correo.");
+
             var cliente = new Cliente
             {
-                NombreCompleto = request.NombreCompleto,
-                Telefono = request.Telefono,
-                Correo = request.Correo,
-                Nit = request.Nit
+                NombreCompleto = request.NombreCompleto.Trim(),
+                Telefono = request.Telefono.Trim(),
+                Correo = correo,
+                Nit = request.Nit?.Trim()
             };
 
             db.Clientes.Add(cliente);
@@ -74,18 +81,27 @@ namespace CustomCore.API.Servicios
 
             return cliente.IdCliente;
         }
+        //[FIN][14/10/2026][Rodriale][El correo se normaliza y se valida antes]
 
         //[INICIO][28/8/2026][Rodriale][UPDATE directo sin traer la entidad a memoria]
         public async Task<bool> ActualizarAsync(int id, ActualizarClienteRequest request, CancellationToken cancellationToken)
         {
+            var correo = request.Correo.Trim().ToLowerInvariant();
+
+            //[INICIO][14/10/2026][Rodriale][El cliente puede conservar su correo, pero no tomar el de otro]
+            if (await db.Clientes.AsNoTracking()
+                    .AnyAsync(c => c.IdCliente != id && c.Correo == correo, cancellationToken))
+                throw new ConflictoNegocioException("Ya existe otro cliente registrado con ese correo.");
+            //[FIN][14/10/2026][Rodriale][El cliente puede conservar su correo, pero no tomar el de otro]
+
             var filasAfectadas = await db.Clientes
                 .Where(c => c.IdCliente == id)
                 //[INICIO][28/8/2026][Rodriale][UPDATE directo sin traer la entidad a memoria]
                 //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
                 .ActualizarAuditadoAsync(db, id, s => s
-                    .SetProperty(c => c.NombreCompleto, request.NombreCompleto)
-                    .SetProperty(c => c.Telefono, request.Telefono)
-                    .SetProperty(c => c.Correo, request.Correo)
+                    .SetProperty(c => c.NombreCompleto, request.NombreCompleto.Trim())
+                    .SetProperty(c => c.Telefono, request.Telefono.Trim())
+                    .SetProperty(c => c.Correo, correo)
                     .SetProperty(c => c.Nit, request.Nit), cancellationToken);
             //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
             //[FIN][28/8/2026][Rodriale][UPDATE directo sin traer la entidad a memoria]
