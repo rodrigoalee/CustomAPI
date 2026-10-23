@@ -132,16 +132,23 @@ public sealed class CuentaGoogleService(
         }
         //[FIN][23/10/2026][Rodriale][Solo cliente puro]
 
+        var versionCredenciales = cuenta.VersionCredenciales;
+
         if (cuenta.GoogleId is null)
         {
-            //[INICIO][23/10/2026][Rodriale][Vincular: la cuenta la creó la propia persona con ese correo, así que controlar el buzón sí prueba que es la misma. Auditado, y condicionado a que nadie la haya vinculado o inhabilitado mientras tanto]
+            //[INICIO][23/10/2026][Rodriale][Vincular quitando la contraseña: el registro no verifica el correo, así que alguien pudo crear esta cuenta con el Gmail ajeno antes que su dueño (pre-hijacking). Al vincular, el dueño del buzón se queda con la cuenta y la contraseña y las sesiones previas mueren]
+            var versionNueva = Guid.NewGuid().ToString("N");
+
             var filas = await db.Usuarios
                 .Where(u =>
                     u.IdUsuario == cuenta.IdUsuario
                     && u.Activo
                     && u.GoogleId == null)
                 .ActualizarAuditadoAsync(db, cuenta.IdUsuario,
-                    cambios => cambios.SetProperty(u => u.GoogleId, identidad.Sub),
+                    cambios => cambios
+                        .SetProperty(u => u.GoogleId, identidad.Sub)
+                        .SetProperty(u => u.PasswordHash, (string?)null)
+                        .SetProperty(u => u.VersionCredenciales, versionNueva),
                     cancellationToken);
 
             if (filas != 1)
@@ -149,7 +156,9 @@ public sealed class CuentaGoogleService(
                 throw new ConflictoNegocioException(
                     "La cuenta cambió durante la operación. Vuelve a intentarlo.");
             }
-            //[FIN][23/10/2026][Rodriale][Vincular]
+
+            versionCredenciales = versionNueva;
+            //[FIN][23/10/2026][Rodriale][Vincular quitando la contraseña]
         }
         else if (cuenta.GoogleId != identidad.Sub)
         {
@@ -166,7 +175,7 @@ public sealed class CuentaGoogleService(
                 cuenta.NombreCompleto,
                 cuenta.Correo,
                 cuenta.ClienteId is not null),
-            cuenta.VersionCredenciales);
+            versionCredenciales);
         //[FIN][23/10/2026][Rodriale][Nombre y correo salen de la base]
     }
 
