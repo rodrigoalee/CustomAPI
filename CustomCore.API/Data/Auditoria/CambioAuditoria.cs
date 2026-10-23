@@ -15,7 +15,8 @@ internal sealed class CambioAuditoria
     private static readonly Dictionary<Type, string[]> Campos = new()
     {
         [typeof(Usuario)] = [nameof(Usuario.IdUsuario), nameof(Usuario.NombreCompleto),
-            nameof(Usuario.Correo), nameof(Usuario.Activo), nameof(Usuario.SucursalId)],
+            nameof(Usuario.Correo), nameof(Usuario.Activo), nameof(Usuario.SucursalId),
+            nameof(Usuario.GoogleId), nameof(Usuario.ClienteId)],
         [typeof(Rol)] = [nameof(Rol.IdRol), nameof(Rol.Nombre), nameof(Rol.Descripcion)],
         [typeof(Permiso)] = [nameof(Permiso.IdPermiso), nameof(Permiso.NombreCodigo),
             nameof(Permiso.Descripcion), nameof(Permiso.Modulo)],
