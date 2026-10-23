@@ -36,6 +36,7 @@ public sealed class AuthService(
                 u => u.Correo == correo,
                 cancellationToken);
 
+        //[INICIO][23/10/2026][Rodriale][El ?? HashFicticio ahora también cubre a las cuentas de Google: con hash nulo Verificar corta antes de BCrypt y el tiempo de respuesta delataría que el correo existe]
         var passwordCorrecta = passwordService.Verificar(
             request.Password,
             usuario?.PasswordHash ?? HashFicticio);
@@ -47,8 +48,9 @@ public sealed class AuthService(
             new UsuarioSesionDto(
                 usuario.IdUsuario,
                 usuario.NombreCompleto,
-                usuario.Correo),
-            usuario.PasswordHash);
+                usuario.Correo,
+                usuario.ClienteId is not null),
+            usuario.VersionCredenciales);
     }
 
     public Task<UsuarioSesionDto?> ObtenerUsuarioActualAsync(
@@ -59,7 +61,7 @@ public sealed class AuthService(
             .AsNoTracking()
             .Where(u => u.IdUsuario == idUsuario && u.Activo)
             .Select(u => new UsuarioSesionDto(
-                u.IdUsuario, u.NombreCompleto, u.Correo))
+                u.IdUsuario, u.NombreCompleto, u.Correo, u.ClienteId != null))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -91,6 +93,9 @@ public sealed class AuthService(
 
         var hashAnterior = usuario.PasswordHash;
         var hashNuevo = passwordService.CrearHash(request.PasswordNueva);
+        //[INICIO][23/10/2026][Rodriale][Precalculada: ExecuteUpdate traduce el valor a SQL y Guid.NewGuid().ToString() no es traducible]
+        var versionNueva = Guid.NewGuid().ToString("N");
+        //[FIN][23/10/2026][Rodriale][Precalculada]
 
         var filas = await db.Usuarios
             .Where(u =>
@@ -99,8 +104,11 @@ public sealed class AuthService(
                 && u.PasswordHash == hashAnterior)
             //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
             .ActualizarAuditadoAsync(db, idUsuario,
-                cambios => cambios.SetProperty(
-                    u => u.PasswordHash, hashNuevo),
+                //[INICIO][23/10/2026][Rodriale][Rotar VersionCredenciales es lo que mantiene vivo el cierre de sesiones al cambiar contraseña, ahora que cred_ver ya no sale del hash]
+                cambios => cambios
+                    .SetProperty(u => u.PasswordHash, hashNuevo)
+                    .SetProperty(u => u.VersionCredenciales, versionNueva),
+                //[FIN][23/10/2026][Rodriale][Rotar VersionCredenciales mantiene vivo el cierre de sesiones]
                 cancellationToken, cambioPassword: true);
         //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
 

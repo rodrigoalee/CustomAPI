@@ -141,7 +141,7 @@ public static class ConfiguracionSeguridad
                         var usuario = await db.Usuarios
                             .AsNoTracking()
                             .Where(u => u.IdUsuario == idUsuario && u.Activo)
-                            .Select(u => new { u.PasswordHash })
+                            .Select(u => new { u.VersionCredenciales })
                             .SingleOrDefaultAsync(contexto.HttpContext.RequestAborted);
 
                         if (usuario is null)
@@ -157,7 +157,7 @@ public static class ConfiguracionSeguridad
                             .FindFirst(JwtService.ClaimVersionCredenciales)?.Value;
 
                         if (!jwtService.CoincideVersionCredenciales(
-                            version, idUsuario, usuario.PasswordHash))
+                            version, idUsuario, usuario.VersionCredenciales))
                         {
                             contexto.Fail("Sesión inválida.");
                         }
