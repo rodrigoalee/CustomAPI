@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Threading.RateLimiting;
 using CustomCore.API.Data;
 using CustomCore.API.Middleware;
 using CustomCore.API.Servicios;
@@ -46,6 +47,7 @@ builder.Services.AddScoped<PagoStripeService>();
 builder.Services.AddScoped<SucursalService>();
 builder.Services.AddScoped<SucursalActual>();
 builder.Services.AddScoped<InventarioService>();
+builder.Services.AddScoped<RegistroService>();
 //[FIN][Rodriale][Registro de inyección de dependencias]
 
 //[INICIO][31/8/2026][Rodriale][Enlaza la sección "Facturacion" de appsettings con las opciones de impuesto]
@@ -105,6 +107,22 @@ builder.Services.AddSwaggerGen();
 builder.Services.AgregarSeguridad(builder.Configuration);
 //[FIN][16/9/2026][jgarciad8][Registro de autenticación y servicios de seguridad]
 
+//[INICIO][14/10/2026][Rodriale][Techo al registro público: 5 altas por IP cada 10 minutos. Sin esto, un script llena la tabla de clientes]
+builder.Services.AddRateLimiter(opciones =>
+{
+    opciones.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    opciones.AddPolicy("registro", contexto =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            contexto.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(10)
+            }));
+});
+//[FIN][14/10/2026][Rodriale][Techo al registro público]
+
 var app = builder.Build();
 
 app.UseForwardedHeaders();
@@ -118,6 +136,8 @@ app.UseSwaggerUI();
 
 
 app.UseCors(PoliticaCors);
+
+app.UseRateLimiter();
 
 
 app.UseAuthentication();
