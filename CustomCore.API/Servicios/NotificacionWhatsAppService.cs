@@ -1,6 +1,8 @@
 //[INICIO][25/10/2026][Rodriale][Avisos de citas por WhatsApp con la Cloud API de Meta; un aviso que no sale nunca tumba la cita]
 using System.Globalization;
 using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using CustomCore.API.Configuracion;
 using CustomCore.API.Data;
@@ -138,11 +140,16 @@ public sealed partial class NotificacionWhatsAppService(
             };
             //[FIN][25/10/2026][Rodriale][Meta pide el número sin el "+"]
 
+            //[INICIO][26/10/2026][Rodriale][Se registra el JSON tal cual se envía a Meta para depurar rechazos]
+            var json = JsonSerializer.Serialize(cuerpo);
+            logger.LogInformation("Payload de WhatsApp de la {Origen}: {Json}", origen, json);
+            //[FIN][26/10/2026][Rodriale][Se registra el JSON tal cual se envía a Meta]
+
             using var solicitud = new HttpRequestMessage(
                 HttpMethod.Post,
                 $"https://graph.facebook.com/{configuracion.VersionApi}/{configuracion.PhoneNumberId}/messages")
             {
-                Content = JsonContent.Create(cuerpo)
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
             };
             solicitud.Headers.Authorization = new AuthenticationHeaderValue("Bearer", configuracion.Token);
 
