@@ -11,6 +11,10 @@ namespace CustomCore.API.Configuracion
 
         public string VersionApi { get; set; } = "v25.0";
 
+        //[INICIO][26/10/2026][Rodriale][Enlace al seguimiento del cliente en el front; {idCita} se reemplaza al armar el aviso]
+        public string UrlSeguimiento { get; set; } = string.Empty;
+        //[FIN][26/10/2026][Rodriale][Enlace al seguimiento del cliente en el front]
+
         public bool Configurado =>
             !string.IsNullOrWhiteSpace(Token)
             && !string.IsNullOrWhiteSpace(PhoneNumberId);

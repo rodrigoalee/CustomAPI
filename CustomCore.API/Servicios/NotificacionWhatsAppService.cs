@@ -26,18 +26,67 @@ public sealed partial class NotificacionWhatsAppService(
         string Placa,
         string Sede,
         DateTimeOffset FechaHora,
-        string? Servicio);
+        string? Servicio,
+        int? IdCita);
 
     public Task CitaAgendadaAsync(int idCita) =>
-        EnviarAsync(idCita, datos =>
+        EnviarAsync($"cita {idCita}", DeCita(idCita), datos =>
             $"Hola {datos.NombreCliente}, recibimos tu cita en Los Santos Customs para el {Fecha(datos)}" +
             $" en la sede {datos.Sede} con tu vehículo {datos.Placa}{Servicio(datos)}." +
             " Te avisaremos cuando el taller la confirme.");
 
     public Task CitaConfirmadaAsync(int idCita) =>
-        EnviarAsync(idCita, datos =>
+        EnviarAsync($"cita {idCita}", DeCita(idCita), datos =>
             $"Hola {datos.NombreCliente}, tu cita en Los Santos Customs para el {Fecha(datos)}" +
             $" en la sede {datos.Sede} fue confirmada. Te esperamos con tu vehículo {datos.Placa}.");
+
+    //[INICIO][26/10/2026][Rodriale][Avisos del avance de la orden: los mismos pasos que ve el cliente en su seguimiento]
+    public Task VehiculoRecibidoAsync(int idOrden) =>
+        EnviarAsync($"orden {idOrden}", DeOrden(idOrden), datos =>
+            $"Hola {datos.NombreCliente}, tu vehículo {datos.Placa} ya ingresó a Los Santos Customs en la sede {datos.Sede}." +
+            " Te avisaremos cuando nuestros mecánicos empiecen a trabajar en él." + Enlace(datos));
+
+    public Task TrabajoIniciadoAsync(int idOrden) =>
+        EnviarAsync($"orden {idOrden}", DeOrden(idOrden), datos =>
+            $"Hola {datos.NombreCliente}, nuestros mecánicos ya están trabajando en tu vehículo {datos.Placa}" +
+            $"{Servicio(datos)}." + Enlace(datos));
+
+    public Task TrabajoTerminadoAsync(int idOrden) =>
+        EnviarAsync($"orden {idOrden}", DeOrden(idOrden), datos =>
+            $"Hola {datos.NombreCliente}, terminamos el trabajo en tu vehículo {datos.Placa}." +
+            $" Ya puedes pasar a recogerlo a la sede {datos.Sede}." + Enlace(datos));
+
+    private string Enlace(DatosAviso datos) =>
+        datos.IdCita is { } idCita && !string.IsNullOrWhiteSpace(opciones.Value.UrlSeguimiento)
+            ? $" Sigue el avance aquí: {opciones.Value.UrlSeguimiento.Replace("{idCita}", idCita.ToString())}"
+            : string.Empty;
+
+    private IQueryable<DatosAviso> DeCita(int idCita) =>
+        db.Citas
+            .AsNoTracking()
+            .Where(c => c.IdCita == idCita)
+            .Select(c => new DatosAviso(
+                c.Vehiculo.Cliente.NombreCompleto,
+                c.Vehiculo.Cliente.Telefono,
+                c.Vehiculo.Placa,
+                db.Sucursales.Where(s => s.IdSucursal == c.SucursalId).Select(s => s.Nombre).First(),
+                c.FechaHora,
+                c.Servicio != null ? c.Servicio.Nombre : null,
+                c.IdCita));
+
+    private IQueryable<DatosAviso> DeOrden(int idOrden) =>
+        db.OrdenesTrabajoEncabezado
+            .AsNoTracking()
+            .Where(o => o.IdOrdenEncabezado == idOrden)
+            .Select(o => new DatosAviso(
+                o.Vehiculo.Cliente.NombreCompleto,
+                o.Vehiculo.Cliente.Telefono,
+                o.Vehiculo.Placa,
+                db.Sucursales.Where(s => s.IdSucursal == o.SucursalId).Select(s => s.Nombre).First(),
+                o.FechaIngreso,
+                o.Cita != null && o.Cita.Servicio != null ? o.Cita.Servicio.Nombre : null,
+                o.CitaId));
+    //[FIN][26/10/2026][Rodriale][Avisos del avance de la orden]
 
     private static string Fecha(DatosAviso datos)
     {
@@ -48,40 +97,34 @@ public sealed partial class NotificacionWhatsAppService(
     private static string Servicio(DatosAviso datos) =>
         datos.Servicio is null ? string.Empty : $" para {datos.Servicio}";
 
-    private async Task EnviarAsync(int idCita, Func<DatosAviso, string> mensaje)
+    private async Task EnviarAsync(string origen, IQueryable<DatosAviso> consulta, Func<DatosAviso, string> mensaje)
     {
-        logger.LogInformation("Preparando aviso de WhatsApp de la cita {IdCita}.", idCita);
+        logger.LogInformation("Preparando aviso de WhatsApp de la {Origen}.", origen);
         var configuracion = opciones.Value;
         if (!configuracion.Configurado)
         {
-            logger.LogWarning("WhatsApp no está configurado; no se envió el aviso de la cita {IdCita}.", idCita);
+            logger.LogWarning("WhatsApp no está configurado; no se envió el aviso de la {Origen}.", origen);
             return;
         }
 
         try
         {
-            var datos = await db.Citas
-                .AsNoTracking()
-                .Where(c => c.IdCita == idCita)
-                .Select(c => new DatosAviso(
-                    c.Vehiculo.Cliente.NombreCompleto,
-                    c.Vehiculo.Cliente.Telefono,
-                    c.Vehiculo.Placa,
-                    db.Sucursales.Where(s => s.IdSucursal == c.SucursalId).Select(s => s.Nombre).First(),
-                    c.FechaHora,
-                    c.Servicio != null ? c.Servicio.Nombre : null))
-                .FirstOrDefaultAsync();
+            var datos = await consulta.FirstOrDefaultAsync();
 
             if (datos is null)
             {
-                logger.LogWarning("No se encontró la cita {IdCita} para armar el aviso de WhatsApp.", idCita);
+                logger.LogWarning("No se encontró la {Origen} para armar el aviso de WhatsApp.", origen);
                 return;
             }
 
             var telefono = datos.Telefono.Replace(" ", string.Empty).Replace("-", string.Empty);
+            //[INICIO][26/10/2026][Rodriale][Clientes viejos guardados con 8 dígitos sin código: se asume Guatemala]
+            if (telefono.Length == 8 && telefono.All(char.IsAsciiDigit))
+                telefono = "+502" + telefono;
+            //[FIN][26/10/2026][Rodriale][Clientes viejos guardados con 8 dígitos sin código]
             if (!TelefonoE164().IsMatch(telefono))
             {
-                logger.LogWarning("El teléfono del cliente de la cita {IdCita} no tiene código de país; no se envió el aviso.", idCita);
+                logger.LogWarning("El teléfono del cliente de la {Origen} no tiene código de país; no se envió el aviso.", origen);
                 return;
             }
 
@@ -108,16 +151,16 @@ public sealed partial class NotificacionWhatsAppService(
 
             if (!respuesta.IsSuccessStatusCode)
             {
-                logger.LogError("Meta rechazó el aviso de WhatsApp de la cita {IdCita} ({Estado}): {Respuesta}",
-                    idCita, (int)respuesta.StatusCode, contenido);
+                logger.LogError("Meta rechazó el aviso de WhatsApp de la {Origen} ({Estado}): {Respuesta}",
+                    origen, (int)respuesta.StatusCode, contenido);
                 return;
             }
 
-            logger.LogInformation("Aviso de WhatsApp de la cita {IdCita} enviado: {Respuesta}", idCita, contenido);
+            logger.LogInformation("Aviso de WhatsApp de la {Origen} enviado: {Respuesta}", origen, contenido);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "No se pudo enviar el aviso de WhatsApp de la cita {IdCita}.", idCita);
+            logger.LogError(ex, "No se pudo enviar el aviso de WhatsApp de la {Origen}.", origen);
         }
     }
 }
