@@ -61,7 +61,13 @@ public sealed class AuthService(
             .AsNoTracking()
             .Where(u => u.IdUsuario == idUsuario && u.Activo)
             .Select(u => new UsuarioSesionDto(
-                u.IdUsuario, u.NombreCompleto, u.Correo, u.ClienteId != null))
+                u.IdUsuario, u.NombreCompleto, u.Correo, u.ClienteId != null,
+                //[INICIO][25/10/2026][Rodriale][Mismo camino que PermisoHandler: usuario → roles → permisos]
+                u.UsuarioRoles
+                    .SelectMany(ur => ur.Rol.RolPermisos.Select(rp => rp.Permiso.NombreCodigo))
+                    .Distinct()
+                    .ToList()))
+                //[FIN][25/10/2026][Rodriale][Mismo camino que PermisoHandler]
             .SingleOrDefaultAsync(cancellationToken);
     }
 

@@ -8,9 +8,20 @@ namespace CustomCore.API.Seguridad;
 
 public sealed class SucursalActual(AppDbContext db, IHttpContextAccessor http)
 {
-    private sealed record Perfil(int? SucursalId, bool Todas);
+    private sealed record Perfil(int IdUsuario, int? SucursalId, bool Todas, bool SoloSusOrdenes);
 
     private Perfil? _perfil;
+
+    //[INICIO][25/10/2026][Rodriale][El mecánico que no abre órdenes solo ve las suyas: devuelve su id para filtrar, null si ve todas]
+    public async Task<int?> MecanicoRestringidoAsync(CancellationToken cancellationToken)
+    {
+        var perfil = await ObtenerPerfilAsync(cancellationToken);
+        return perfil.SoloSusOrdenes ? perfil.IdUsuario : null;
+    }
+
+    public async Task<int> UsuarioIdAsync(CancellationToken cancellationToken) =>
+        (await ObtenerPerfilAsync(cancellationToken)).IdUsuario;
+    //[FIN][25/10/2026][Rodriale][El mecánico que no abre órdenes solo ve las suyas]
 
     //[INICIO][12/10/2026][Rodriale][Para lecturas: null significa sin filtro; sin sede y sin permiso falla cerrado]
     public async Task<int?> AlcanceAsync(CancellationToken cancellationToken)
@@ -69,9 +80,16 @@ public sealed class SucursalActual(AppDbContext db, IHttpContextAccessor http)
             .AsNoTracking()
             .Where(u => u.IdUsuario == idUsuario)
             .Select(u => new Perfil(
+                u.IdUsuario,
                 u.SucursalId,
                 u.UsuarioRoles.Any(ur => ur.Rol.RolPermisos.Any(
-                    rp => rp.Permiso.NombreCodigo == PermisosSistema.SucursalesTodas))))
+                    rp => rp.Permiso.NombreCodigo == PermisosSistema.SucursalesTodas)),
+                //[INICIO][25/10/2026][Rodriale][Mecánico sin permiso de abrir órdenes]
+                u.UsuarioRoles.Any(ur => ur.Rol.RolPermisos.Any(
+                    rp => rp.Permiso.NombreCodigo == PermisosSistema.OrdenesTrabajar))
+                && !u.UsuarioRoles.Any(ur => ur.Rol.RolPermisos.Any(
+                    rp => rp.Permiso.NombreCodigo == PermisosSistema.OrdenesCrear))))
+                //[FIN][25/10/2026][Rodriale][Mecánico sin permiso de abrir órdenes]
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new AccesoDenegadoException("La sesión no identifica a un usuario.");
 

@@ -18,6 +18,10 @@ namespace CustomCore.API.Dtos
         [Range(1, int.MaxValue)]
         public int? SucursalId { get; init; }
         //[FIN][12/10/2026][Rodriale][Filtro por sede]
+
+        //[INICIO][25/10/2026][Rodriale][Solo las órdenes asignadas a quien consulta; al mecánico restringido se le aplica siempre]
+        public bool AsignadasAMi { get; init; }
+        //[FIN][25/10/2026][Rodriale][Solo las órdenes asignadas a quien consulta]
     }
     //[FIN][31/8/2026][Rodriale][Filtros del tablero de órdenes]
 
@@ -31,7 +35,11 @@ namespace CustomCore.API.Dtos
         DateTimeOffset FechaIngreso,
         DateTimeOffset? FechaFinalizacion,
         EstadoOrdenTrabajo Estado,
-        decimal TotalEstimado);
+        decimal TotalEstimado,
+        //[INICIO][25/10/2026][Rodriale][Mecánico y servicio para el tablero de recepción y "mis órdenes"]
+        string? MecanicoAsignado,
+        string? Servicio);
+        //[FIN][25/10/2026][Rodriale][Mecánico y servicio para el tablero]
     //[FIN][31/8/2026][Rodriale][Fila del listado]
 
     //[INICIO][31/8/2026][Rodriale][Vista completa de la orden: encabezado, responsables y el desglose de trabajo]
@@ -51,7 +59,12 @@ namespace CustomCore.API.Dtos
         decimal TotalEstimado,
         string UsuarioRecepcion,
         string? MecanicoAsignado,
-        IReadOnlyList<LineaOrdenDto> Lineas);
+        IReadOnlyList<LineaOrdenDto> Lineas,
+        //[INICIO][25/10/2026][Rodriale][Cita de origen, motivo de recepción e id del mecánico para reasignar]
+        int? CitaId,
+        string? MotivoIngreso,
+        int? MecanicoAsignadoId);
+        //[FIN][25/10/2026][Rodriale][Cita de origen, motivo de recepción e id del mecánico]
     //[FIN][31/8/2026][Rodriale][Vista completa de la orden]
 
     //[INICIO][31/8/2026][Rodriale][Cada línea del trabajo; TipoLinea le ahorra al front tener que adivinar si es repuesto o mano de obra]
@@ -85,16 +98,27 @@ namespace CustomCore.API.Dtos
     //[FIN][31/8/2026][Rodriale][Una línea es repuesto O servicio]
 
     //[INICIO][31/8/2026][Rodriale][Alta de la orden; ojo que aquí NO se manda el precio: eso lo pone el catálogo, no el cliente]
+    //[INICIO][25/10/2026][Rodriale][Toda orden nace de una cita: vehículo y sede salen de ella. UsuarioRecepcionId lo pone el controlador desde el JWT]
     public record CrearOrdenRequest(
-        [Range(1, int.MaxValue)] int VehiculoId,
-        [Range(1, int.MaxValue)] int UsuarioRecepcionId,
+        [Range(1, int.MaxValue)] int CitaId,
         int? MecanicoAsignadoId,
-        [MaxLength(2000)] string? Diagnostico,
-        IReadOnlyList<CrearLineaOrdenRequest> Lineas,
-        //[INICIO][12/10/2026][Rodriale][Solo lo usa quien ve todas las sedes; al empleado se le asigna la suya]
-        [Range(1, int.MaxValue)] int? SucursalId = null);
-        //[FIN][12/10/2026][Rodriale][Solo lo usa quien ve todas las sedes]
+        [MaxLength(1000)] string? MotivoIngreso,
+        IReadOnlyList<CrearLineaOrdenRequest>? Lineas = null,
+        int UsuarioRecepcionId = 0);
+    //[FIN][25/10/2026][Rodriale][Toda orden nace de una cita]
     //[FIN][31/8/2026][Rodriale][Alta de la orden]
+
+    //[INICIO][25/10/2026][Rodriale][El mecánico solo escribe su diagnóstico; no puede tocar la asignación]
+    public record ActualizarDiagnosticoRequest(
+        [MaxLength(2000)] string? Diagnostico);
+    //[FIN][25/10/2026][Rodriale][El mecánico solo escribe su diagnóstico]
+
+    //[INICIO][25/10/2026][Rodriale][Mecánico de la sede con su carga: disponible si no tiene órdenes activas]
+    public record MecanicoDisponibleDto(
+        int IdUsuario,
+        string NombreCompleto,
+        int OrdenesActivas);
+    //[FIN][25/10/2026][Rodriale][Mecánico de la sede con su carga]
 
     //[INICIO][31/8/2026][Rodriale][Lo único editable del encabezado: el diagnóstico del mecánico y a quién se le asigna el trabajo]
     public record ActualizarOrdenRequest(
