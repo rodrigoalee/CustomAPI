@@ -84,10 +84,15 @@ public sealed class CuentaGoogleService(
                     Audience = [opcionesGoogle.ClientId]
                 });
         }
-        catch (InvalidJwtException)
+        //[INICIO][23/10/2026][Rodriale][Un token mal formado no siempre lanza InvalidJwtException: según su forma la librería lanza errores de JSON, Base64 o argumentos, y sin esto respondían 500]
+        catch (Exception ex) when (ex is InvalidJwtException
+                                       or FormatException
+                                       or ArgumentException
+                                       or Newtonsoft.Json.JsonException)
         {
             return null;
         }
+        //[FIN][23/10/2026][Rodriale][Un token mal formado no siempre lanza InvalidJwtException]
 
         //[INICIO][23/10/2026][Rodriale][Firma mala, aud ajeno y correo sin verificar son el mismo null: al cliente legítimo no le sirve el detalle y al atacante sí]
         if (!payload.EmailVerified
