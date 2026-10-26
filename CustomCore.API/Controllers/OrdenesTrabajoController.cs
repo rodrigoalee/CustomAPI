@@ -25,6 +25,16 @@ namespace CustomCore.API.Controllers
             servicio.ObtenerAsync(consulta, cancellationToken);
         //[FIN][31/8/2026][Rodriale][Tablero de órdenes]
 
+        //[INICIO][26/10/2026][Rodriale][Cuántas órdenes hay en cada estado con los filtros del tablero]
+        [HttpGet("conteo-por-estado")]
+        [Authorize(Policy = PermisosSistema.OrdenesLeer)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public Task<ConteoOrdenesPorEstadoDto> ContarPorEstado(
+            [FromQuery] ConsultaOrdenes consulta,
+            CancellationToken cancellationToken) =>
+            servicio.ContarPorEstadoAsync(consulta, cancellationToken);
+        //[FIN][26/10/2026][Rodriale][Cuántas órdenes hay en cada estado]
+
         //[INICIO][25/10/2026][Rodriale][Mecánicos de la sede con su carga, para elegir a quién asignar]
         [HttpGet("mecanicos")]
         [Authorize(Policy = PermisosSistema.OrdenesCrear)]

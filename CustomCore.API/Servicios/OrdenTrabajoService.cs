@@ -19,43 +19,10 @@ namespace CustomCore.API.Servicios
             ConsultaOrdenes consulta,
             CancellationToken cancellationToken)
         {
-            var query = db.OrdenesTrabajoEncabezado.AsNoTracking();
-
-            //[INICIO][12/10/2026][Rodriale][El empleado solo ve su sede aunque pida otra; quien ve todas puede filtrar]
-            var filtroSucursal = await sucursal.AlcanceAsync(cancellationToken) ?? consulta.SucursalId;
-            if (filtroSucursal is { } sucursalId)
-                query = query.Where(o => o.SucursalId == sucursalId);
-            //[FIN][12/10/2026][Rodriale][El empleado solo ve su sede]
-
-            //[INICIO][25/10/2026][Rodriale][El mecánico restringido solo ve las suyas aunque no lo pida]
-            var mecanico = await sucursal.MecanicoRestringidoAsync(cancellationToken);
-            if (mecanico is null && consulta.AsignadasAMi)
-                mecanico = await sucursal.UsuarioIdAsync(cancellationToken);
-            if (mecanico is { } idMecanico)
-                query = query.Where(o => o.MecanicoAsignadoId == idMecanico);
-            //[FIN][25/10/2026][Rodriale][El mecánico restringido solo ve las suyas]
-
-            if (consulta.VehiculoId is { } vehiculoId)
-                query = query.Where(o => o.VehiculoId == vehiculoId);
+            var query = await FiltrarAsync(consulta, cancellationToken);
 
             if (consulta.Estado is { } estado)
                 query = query.Where(o => o.Estado == estado);
-
-            if (consulta.Desde is { } desde)
-                query = query.Where(o => o.FechaIngreso >= desde);
-
-            if (consulta.Hasta is { } hasta)
-                query = query.Where(o => o.FechaIngreso <= hasta);
-
-            //[INICIO][31/8/2026][Rodriale][Se busca por placa o por nombre del dueño, que es como pregunta la gente en recepción]
-            if (!string.IsNullOrWhiteSpace(consulta.Busqueda))
-            {
-                var patron = $"%{consulta.Busqueda.Trim()}%";
-                query = query.Where(o =>
-                    EF.Functions.ILike(o.Vehiculo.Placa, patron) ||
-                    EF.Functions.ILike(o.Vehiculo.Cliente.NombreCompleto, patron));
-            }
-            //[FIN][31/8/2026][Rodriale][Se busca por placa o por nombre del dueño]
 
             var total = await query.CountAsync(cancellationToken);
 
@@ -80,6 +47,69 @@ namespace CustomCore.API.Servicios
             return new ResultadoPaginado<OrdenListaDto>(items, consulta.Pagina, consulta.Tamanio, total);
         }
         //[FIN][31/8/2026][Rodriale][Listado del tablero]
+
+        //[INICIO][26/10/2026][Rodriale][Cuántas órdenes hay en cada estado con los mismos filtros del listado, para los contadores del filtro]
+        public async Task<ConteoOrdenesPorEstadoDto> ContarPorEstadoAsync(
+            ConsultaOrdenes consulta,
+            CancellationToken cancellationToken)
+        {
+            var query = await FiltrarAsync(consulta, cancellationToken);
+
+            var conteos = await query
+                .GroupBy(o => o.Estado)
+                .Select(g => new { Estado = g.Key, Total = g.Count() })
+                .ToDictionaryAsync(g => g.Estado, g => g.Total, cancellationToken);
+
+            return new ConteoOrdenesPorEstadoDto(
+                conteos.GetValueOrDefault(EstadoOrdenTrabajo.EnRecepcion),
+                conteos.GetValueOrDefault(EstadoOrdenTrabajo.EnProceso),
+                conteos.GetValueOrDefault(EstadoOrdenTrabajo.Finalizado));
+        }
+        //[FIN][26/10/2026][Rodriale][Cuántas órdenes hay en cada estado]
+
+        //[INICIO][26/10/2026][Rodriale][Filtros comunes del listado y del conteo; el estado lo aplica cada quien]
+        private async Task<IQueryable<OrdenTrabajoEncabezado>> FiltrarAsync(
+            ConsultaOrdenes consulta,
+            CancellationToken cancellationToken)
+        {
+            var query = db.OrdenesTrabajoEncabezado.AsNoTracking();
+
+            //[INICIO][12/10/2026][Rodriale][El empleado solo ve su sede aunque pida otra; quien ve todas puede filtrar]
+            var filtroSucursal = await sucursal.AlcanceAsync(cancellationToken) ?? consulta.SucursalId;
+            if (filtroSucursal is { } sucursalId)
+                query = query.Where(o => o.SucursalId == sucursalId);
+            //[FIN][12/10/2026][Rodriale][El empleado solo ve su sede]
+
+            //[INICIO][25/10/2026][Rodriale][El mecánico restringido solo ve las suyas aunque no lo pida]
+            var mecanico = await sucursal.MecanicoRestringidoAsync(cancellationToken);
+            if (mecanico is null && consulta.AsignadasAMi)
+                mecanico = await sucursal.UsuarioIdAsync(cancellationToken);
+            if (mecanico is { } idMecanico)
+                query = query.Where(o => o.MecanicoAsignadoId == idMecanico);
+            //[FIN][25/10/2026][Rodriale][El mecánico restringido solo ve las suyas]
+
+            if (consulta.VehiculoId is { } vehiculoId)
+                query = query.Where(o => o.VehiculoId == vehiculoId);
+
+            if (consulta.Desde is { } desde)
+                query = query.Where(o => o.FechaIngreso >= desde);
+
+            if (consulta.Hasta is { } hasta)
+                query = query.Where(o => o.FechaIngreso <= hasta);
+
+            //[INICIO][31/8/2026][Rodriale][Se busca por placa o por nombre del dueño, que es como pregunta la gente en recepción]
+            if (!string.IsNullOrWhiteSpace(consulta.Busqueda))
+            {
+                var patron = $"%{consulta.Busqueda.Trim()}%";
+                query = query.Where(o =>
+                    EF.Functions.ILike(o.Vehiculo.Placa, patron) ||
+                    EF.Functions.ILike(o.Vehiculo.Cliente.NombreCompleto, patron));
+            }
+            //[FIN][31/8/2026][Rodriale][Se busca por placa o por nombre del dueño]
+
+            return query;
+        }
+        //[FIN][26/10/2026][Rodriale][Filtros comunes del listado y del conteo]
 
         //[INICIO][31/8/2026][Rodriale][Detalle completo en una sola consulta: orden, vehículo, dueño, responsables y líneas, sin caer en N+1]
         public async Task<OrdenDetalleDto?> ObtenerPorIdAsync(int id, CancellationToken cancellationToken)
