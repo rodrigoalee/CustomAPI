@@ -12,6 +12,7 @@ namespace CustomCore.API.Servicios
     {
         //[INICIO][31/8/2026][Rodriale][Margen para acotar la ventana que se trae a memoria al validar solapamiento]
         private const int VentanaDias = 1;
+        private const int ToleranciaAhoraMinutos = 5;
         //[FIN][31/8/2026][Rodriale][Margen para acotar la ventana que se trae a memoria al validar solapamiento]
 
         public async Task<ResultadoPaginado<CitaListaDto>> ObtenerAsync(
@@ -103,8 +104,14 @@ namespace CustomCore.API.Servicios
 
         public async Task<int> CrearAsync(CrearCitaRequest request, CancellationToken cancellationToken)
         {
-            if (request.FechaHora < DateTimeOffset.UtcNow)
+            //[INICIO][26/10/2026][Rodriale][Unos minutos de gracia: la cita "ahora" del mostrador llega segundos tarde]
+            if (request.FechaHora < DateTimeOffset.UtcNow.AddMinutes(-ToleranciaAhoraMinutos))
                 throw new ConflictoNegocioException("No se puede agendar una cita en una fecha pasada.");
+
+            if (request.ServicioId is { } servicioId &&
+                !await db.Servicios.AsNoTracking().AnyAsync(s => s.IdServicio == servicioId && s.Activo, cancellationToken))
+                throw new ConflictoNegocioException("El servicio no existe o ya no está disponible.");
+            //[FIN][26/10/2026][Rodriale][Unos minutos de gracia y servicio válido]
 
             //[INICIO][12/10/2026][Rodriale][La cita queda en la sede de quien la agenda]
             var sucursalId = await sucursal.ResolverAsync(request.SucursalId, cancellationToken);
@@ -124,11 +131,16 @@ namespace CustomCore.API.Servicios
                 FechaHora = request.FechaHora,
                 DuracionMinutos = request.DuracionMinutos,
                 Motivo = request.Motivo,
-                Estado = EstadoCita.Pendiente
+                //[INICIO][26/10/2026][Rodriale][La agenda el propio taller: nace confirmada y el cliente recibe el aviso]
+                ServicioId = request.ServicioId,
+                Estado = EstadoCita.Confirmada
             };
 
             db.Citas.Add(cita);
             await db.SaveChangesAsync(cancellationToken);
+
+            await whatsApp.CitaConfirmadaAsync(cita.IdCita);
+            //[FIN][26/10/2026][Rodriale][La agenda el propio taller: nace confirmada]
 
             return cita.IdCita;
         }

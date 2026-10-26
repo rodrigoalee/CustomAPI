@@ -104,6 +104,87 @@ namespace CustomCore.API.Data.Migrations
                     b.ToTable("Clientes", "customcore");
                 });
 
+            modelBuilder.Entity("CustomCore.API.Entidades.Cotizacion", b =>
+                {
+                    b.Property<int>("IdCotizacion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("IdCotizacion"));
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("FechaCreacion")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("FechaRespuesta")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Nota")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("OrdenTrabajoId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("UsuarioCreaId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("IdCotizacion");
+
+                    b.HasIndex("OrdenTrabajoId");
+
+                    b.HasIndex("UsuarioCreaId");
+
+                    b.ToTable("Cotizaciones", "customcore");
+                });
+
+            modelBuilder.Entity("CustomCore.API.Entidades.CotizacionDetalle", b =>
+                {
+                    b.Property<int>("IdCotizacionDetalle")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("IdCotizacionDetalle"));
+
+                    b.Property<int>("Cantidad")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CotizacionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Descripcion")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("PrecioUnitario")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("Subtotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.HasKey("IdCotizacionDetalle");
+
+                    b.HasIndex("CotizacionId");
+
+                    b.ToTable("CotizacionesDetalle", "customcore", t =>
+                        {
+                            t.HasCheckConstraint("CK_CotizacionesDetalle_CantidadPositiva", "\"Cantidad\" > 0");
+
+                            t.HasCheckConstraint("CK_CotizacionesDetalle_PrecioNoNegativo", "\"PrecioUnitario\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("CustomCore.API.Entidades.FacturaDetalle", b =>
                 {
                     b.Property<int>("IdFacturaDetalle")
@@ -296,6 +377,10 @@ namespace CustomCore.API.Data.Migrations
                     b.Property<int>("Cantidad")
                         .HasColumnType("integer");
 
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<int>("OrdenTrabajoId")
                         .HasColumnType("integer");
 
@@ -325,7 +410,7 @@ namespace CustomCore.API.Data.Migrations
                         {
                             t.HasCheckConstraint("CK_OrdenesTrabajoDetalle_CantidadPositiva", "\"Cantidad\" > 0");
 
-                            t.HasCheckConstraint("CK_OrdenesTrabajoDetalle_RepuestoOServicio", "(\"RepuestoId\" IS NOT NULL) <> (\"ServicioId\" IS NOT NULL)");
+                            t.HasCheckConstraint("CK_OrdenesTrabajoDetalle_RepuestoServicioOAdicional", "num_nonnulls(\"RepuestoId\", \"ServicioId\", \"Descripcion\") = 1");
                         });
                 });
 
@@ -701,6 +786,32 @@ namespace CustomCore.API.Data.Migrations
                     b.Navigation("Vehiculo");
                 });
 
+            modelBuilder.Entity("CustomCore.API.Entidades.Cotizacion", b =>
+                {
+                    b.HasOne("CustomCore.API.Entidades.OrdenTrabajoEncabezado", "OrdenTrabajo")
+                        .WithMany()
+                        .HasForeignKey("OrdenTrabajoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CustomCore.API.Entidades.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("UsuarioCreaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OrdenTrabajo");
+                });
+
+            modelBuilder.Entity("CustomCore.API.Entidades.CotizacionDetalle", b =>
+                {
+                    b.HasOne("CustomCore.API.Entidades.Cotizacion", null)
+                        .WithMany("Detalles")
+                        .HasForeignKey("CotizacionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CustomCore.API.Entidades.FacturaDetalle", b =>
                 {
                     b.HasOne("CustomCore.API.Entidades.FacturaEncabezado", "Factura")
@@ -893,6 +1004,11 @@ namespace CustomCore.API.Data.Migrations
             modelBuilder.Entity("CustomCore.API.Entidades.Cliente", b =>
                 {
                     b.Navigation("Vehiculos");
+                });
+
+            modelBuilder.Entity("CustomCore.API.Entidades.Cotizacion", b =>
+                {
+                    b.Navigation("Detalles");
                 });
 
             modelBuilder.Entity("CustomCore.API.Entidades.FacturaEncabezado", b =>

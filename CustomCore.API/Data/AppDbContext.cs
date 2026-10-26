@@ -28,6 +28,9 @@ namespace CustomCore.API.Data
         public DbSet<LogAccion> LogsAcciones => Set<LogAccion>();
         public DbSet<Sucursal> Sucursales => Set<Sucursal>();
         public DbSet<InventarioSucursal> InventariosSucursal => Set<InventarioSucursal>();
+        //[INICIO][26/10/2026][Rodriale][Cotizaciones de trabajo fuera del catálogo]
+        public DbSet<Cotizacion> Cotizaciones => Set<Cotizacion>();
+        //[FIN][26/10/2026][Rodriale][Cotizaciones de trabajo fuera del catálogo]
         //[FIN][27/8/2026][Rodriale][definimos las entidades para que sean públicas para poder hacer consultas]
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)

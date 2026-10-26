@@ -78,6 +78,7 @@ public sealed class RolService(AppDbContext db)
         if (rol is null)
             return false;
 
+        ValidarNoEsRolCliente(rol);
         await ValidarNombreAsync(request.Nombre, id, ct);
 
         rol.Nombre = request.Nombre.Trim();
@@ -96,6 +97,8 @@ public sealed class RolService(AppDbContext db)
 
         if (rol is null)
             return false;
+
+        ValidarNoEsRolCliente(rol);
 
         if (await db.UsuarioRoles.AnyAsync(r => r.RolId == id, ct))
         {
@@ -134,22 +137,7 @@ public sealed class RolService(AppDbContext db)
 
         if (asignar)
         {
-
-            var excedePermisos = await db.RolPermisos
-                .Where(rp => rp.RolId == rolId)
-                .AnyAsync(
-                    rp => !db.UsuarioRoles.Any(
-                        ur => ur.UsuarioId == usuarioActualId
-                            && ur.Usuario.Activo
-                            && ur.Rol.RolPermisos.Any(
-                                propio => propio.PermisoId == rp.PermisoId)),
-                    ct);
-
-            if (excedePermisos)
-            {
-                throw new ConflictoNegocioException(
-                    "No puedes asignar un rol con permisos que no posees.");
-            }
+            await ValidarRolAsignableAsync(rolId, usuarioActualId, ct);
         }
 
         var relacion = await db.UsuarioRoles.SingleOrDefaultAsync(
@@ -178,6 +166,38 @@ public sealed class RolService(AppDbContext db)
         return true;
     }
 
+
+    //[INICIO][26/10/2026][Rodriale][El registro del portal busca el rol Cliente por nombre: no se renombra ni se elimina]
+    private static void ValidarNoEsRolCliente(Rol rol)
+    {
+        if (rol.Nombre == RegistroService.RolCliente)
+        {
+            throw new ConflictoNegocioException(
+                "El rol Cliente lo usa el portal de clientes y no se puede renombrar ni eliminar.");
+        }
+    }
+    //[FIN][26/10/2026][Rodriale][El rol Cliente no se renombra ni se elimina]
+
+    //[INICIO][26/10/2026][Rodriale][Regla compartida con el alta y edición de usuarios: nadie reparte permisos que no tiene]
+    public async Task ValidarRolAsignableAsync(int rolId, int usuarioActualId, CancellationToken ct)
+    {
+        var excedePermisos = await db.RolPermisos
+            .Where(rp => rp.RolId == rolId)
+            .AnyAsync(
+                rp => !db.UsuarioRoles.Any(
+                    ur => ur.UsuarioId == usuarioActualId
+                        && ur.Usuario.Activo
+                        && ur.Rol.RolPermisos.Any(
+                            propio => propio.PermisoId == rp.PermisoId)),
+                ct);
+
+        if (excedePermisos)
+        {
+            throw new ConflictoNegocioException(
+                "No puedes asignar un rol con permisos que no posees.");
+        }
+    }
+    //[FIN][26/10/2026][Rodriale][Regla compartida: nadie reparte permisos que no tiene]
 
     //[INICIO][16/9/2026][jgarciad8][Consulta y asignación de permisos de un rol]
     public async Task<List<PermisoDto>?> ObtenerPermisosAsync(
