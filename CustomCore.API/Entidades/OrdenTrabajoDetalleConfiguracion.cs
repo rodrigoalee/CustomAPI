@@ -11,9 +11,11 @@ public sealed class OrdenTrabajoDetalleConfiguration : IEntityTypeConfiguration<
     {
         builder.ToTable("OrdenesTrabajoDetalle", t =>
         {
+            //[INICIO][26/10/2026][Rodriale][Cada línea es exactamente una cosa: repuesto, servicio o trabajo adicional cotizado]
             t.HasCheckConstraint(
-                "CK_OrdenesTrabajoDetalle_RepuestoOServicio",
-                @"(""RepuestoId"" IS NOT NULL) <> (""ServicioId"" IS NOT NULL)");
+                "CK_OrdenesTrabajoDetalle_RepuestoServicioOAdicional",
+                @"num_nonnulls(""RepuestoId"", ""ServicioId"", ""Descripcion"") = 1");
+            //[FIN][26/10/2026][Rodriale][Cada línea es exactamente una cosa]
             t.HasCheckConstraint(
                 "CK_OrdenesTrabajoDetalle_CantidadPositiva",
                 @"""Cantidad"" > 0");
@@ -23,6 +25,7 @@ public sealed class OrdenTrabajoDetalleConfiguration : IEntityTypeConfiguration<
 
         builder.Property(d => d.PrecioUnitario).HasPrecision(18, 2);
         builder.Property(d => d.SubtotalEstimado).HasPrecision(18, 2);
+        builder.Property(d => d.Descripcion).HasMaxLength(200);
 
         builder.HasIndex(d => d.OrdenTrabajoId);
 

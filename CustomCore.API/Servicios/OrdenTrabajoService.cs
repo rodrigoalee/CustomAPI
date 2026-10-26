@@ -11,7 +11,7 @@ namespace CustomCore.API.Servicios
     public sealed class OrdenTrabajoService(AppDbContext db, SucursalActual sucursal, NotificacionWhatsAppService whatsApp)
     {
         //[INICIO][12/10/2026][Rodriale][Lo que hace falta saber de una orden antes de tocarla]
-        private sealed record OrdenEditable(EstadoOrdenTrabajo Estado, int SucursalId, int? MecanicoAsignadoId);
+        internal sealed record OrdenEditable(EstadoOrdenTrabajo Estado, int SucursalId, int? MecanicoAsignadoId);
         //[FIN][12/10/2026][Rodriale][Lo que hace falta saber de una orden antes de tocarla]
 
         //[INICIO][31/8/2026][Rodriale][Listado del tablero: filtros opcionales que se van encadenando solo si vienen]
@@ -145,10 +145,12 @@ namespace CustomCore.API.Servicios
                         .OrderBy(d => d.IdOrdenDetalle)
                         .Select(d => new LineaOrdenDto(
                             d.IdOrdenDetalle,
-                            d.RepuestoId != null ? "Repuesto" : "Servicio",
+                            //[INICIO][26/10/2026][Rodriale][La línea adicional viene de una cotización aceptada]
+                            d.RepuestoId != null ? "Repuesto" : d.ServicioId != null ? "Servicio" : "Adicional",
                             d.RepuestoId,
                             d.ServicioId,
-                            d.RepuestoId != null ? d.Repuesto!.Nombre : d.Servicio!.Nombre,
+                            d.RepuestoId != null ? d.Repuesto!.Nombre : d.ServicioId != null ? d.Servicio!.Nombre : d.Descripcion!,
+                            //[FIN][26/10/2026][Rodriale][La línea adicional viene de una cotización aceptada]
                             d.Cantidad,
                             d.PrecioUnitario,
                             d.SubtotalEstimado))
@@ -559,7 +561,7 @@ namespace CustomCore.API.Servicios
         //[FIN][31/8/2026][Rodriale][Una orden ya facturada es intocable]
 
         //[INICIO][31/8/2026][Rodriale][Además de no estar facturada, para tocar líneas la orden no puede estar finalizada: primero se reabre]
-        private async Task<OrdenEditable?> EstaAbiertaParaEditarLineasAsync(
+        internal async Task<OrdenEditable?> EstaAbiertaParaEditarLineasAsync(
             int ordenId,
             CancellationToken cancellationToken)
         {
@@ -577,7 +579,7 @@ namespace CustomCore.API.Servicios
         //[FIN][31/8/2026][Rodriale][Para tocar líneas la orden no puede estar finalizada]
 
         //[INICIO][31/8/2026][Rodriale][El total siempre se recalcula desde las líneas, nunca se va sumando a mano: así no se desincroniza]
-        private async Task RecalcularTotalAsync(int ordenId, CancellationToken cancellationToken)
+        internal async Task RecalcularTotalAsync(int ordenId, CancellationToken cancellationToken)
         {
             var total = await db.OrdenesTrabajoDetalle
                 .Where(d => d.OrdenTrabajoId == ordenId)

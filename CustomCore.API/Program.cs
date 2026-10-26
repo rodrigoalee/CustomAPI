@@ -49,6 +49,8 @@ builder.Services.AddScoped<SucursalActual>();
 builder.Services.AddScoped<InventarioService>();
 builder.Services.AddScoped<RegistroService>();
 builder.Services.AddScoped<PortalService>();
+builder.Services.AddScoped<CotizacionService>();
+builder.Services.AddScoped<PasarelaPruebaService>();
 //[INICIO][25/10/2026][Rodriale][Avisos por WhatsApp; si faltan las credenciales la app arranca igual y solo deja de avisar]
 builder.Services.AddHttpClient<NotificacionWhatsAppService>();
 builder.Services.Configure<CustomCore.API.Configuracion.OpcionesWhatsApp>(
@@ -126,6 +128,17 @@ builder.Services.AddRateLimiter(opciones =>
                 PermitLimit = 5,
                 Window = TimeSpan.FromMinutes(10)
             }));
+
+    //[INICIO][26/10/2026][Rodriale][La pasarela es pública: un techo por IP frena a quien pruebe tarjetas o enlaces al azar]
+    opciones.AddPolicy("pasarela", contexto =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            contexto.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(10)
+            }));
+    //[FIN][26/10/2026][Rodriale][Techo a la pasarela]
 });
 //[FIN][14/10/2026][Rodriale][Techo al registro público]
 

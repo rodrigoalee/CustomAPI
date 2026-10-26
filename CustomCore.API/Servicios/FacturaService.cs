@@ -30,6 +30,11 @@ namespace CustomCore.API.Servicios
             if (consulta.ClienteId is { } clienteId)
                 query = query.Where(f => f.ClienteId == clienteId);
 
+            //[INICIO][26/10/2026][Rodriale][La factura de una orden]
+            if (consulta.OrdenTrabajoId is { } ordenId)
+                query = query.Where(f => f.OrdenTrabajoId == ordenId);
+            //[FIN][26/10/2026][Rodriale][La factura de una orden]
+
             if (consulta.EstadoPago is { } estadoPago)
                 query = query.Where(f => f.EstadoPago == estadoPago);
 
@@ -134,7 +139,9 @@ namespace CustomCore.API.Servicios
                         .OrderBy(d => d.IdOrdenDetalle)
                         .Select(d => new
                         {
-                            Descripcion = d.RepuestoId != null ? d.Repuesto!.Nombre : d.Servicio!.Nombre,
+                            //[INICIO][26/10/2026][Rodriale][El trabajo adicional cotizado se factura con su concepto]
+                            Descripcion = d.RepuestoId != null ? d.Repuesto!.Nombre : d.ServicioId != null ? d.Servicio!.Nombre : d.Descripcion!,
+                            //[FIN][26/10/2026][Rodriale][El trabajo adicional cotizado se factura con su concepto]
                             d.Cantidad,
                             d.PrecioUnitario,
                             d.SubtotalEstimado

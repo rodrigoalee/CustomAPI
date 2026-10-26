@@ -81,6 +81,9 @@ public static class ConfiguracionSeguridad
         //[INICIO][16/9/2026][jgarciad8][Registro de servicios de seguridad]
         servicios.AddSingleton<PasswordService>();
         servicios.AddSingleton(new JwtService(opcionesJwt, claveFirma));
+        //[INICIO][26/10/2026][Rodriale][Los enlaces de pago se firman con la misma clave, con propósito propio]
+        servicios.AddSingleton(new EnlacePago(claveFirma.Key));
+        //[FIN][26/10/2026][Rodriale][Los enlaces de pago se firman con la misma clave]
         servicios.AddScoped<AuthService>();
         //[FIN][16/9/2026][jgarciad8][Registro de servicios de seguridad]
 
@@ -295,7 +298,8 @@ public static class ConfiguracionSeguridad
                 PermisosSistema.OrdenesCrear,
                 PermisosSistema.OrdenesEditar,
                 PermisosSistema.OrdenesCambiarEstado,
-                PermisosSistema.OrdenesTrabajar
+                PermisosSistema.OrdenesTrabajar,
+                PermisosSistema.OrdenesCotizar
             })
             {
                 opciones.AddPolicy(codigo, politica =>

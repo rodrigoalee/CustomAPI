@@ -8,9 +8,30 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CustomCore.API.Servicios;
 
-public sealed class PortalService(AppDbContext db, NotificacionWhatsAppService whatsApp)
+public sealed class PortalService(AppDbContext db, NotificacionWhatsAppService whatsApp, CotizacionService cotizaciones)
 {
     private const int MaxDiasDisponibilidad = 62;
+
+    //[INICIO][26/10/2026][Rodriale][Cotizaciones de la cita del cliente; responder solo sobre las suyas]
+    public async Task<IReadOnlyList<CotizacionDto>> ObtenerCotizacionesAsync(
+        int idUsuario,
+        int idCita,
+        CancellationToken cancellationToken)
+    {
+        var clienteId = await ObtenerClienteIdAsync(idUsuario, cancellationToken);
+        return await cotizaciones.ObtenerDeCitaDelClienteAsync(idCita, clienteId, cancellationToken);
+    }
+
+    public async Task<bool> ResponderCotizacionAsync(
+        int idUsuario,
+        int idCotizacion,
+        bool aceptar,
+        CancellationToken cancellationToken)
+    {
+        var clienteId = await ObtenerClienteIdAsync(idUsuario, cancellationToken);
+        return await cotizaciones.ResponderAsync(idCotizacion, clienteId, aceptar, cancellationToken);
+    }
+    //[FIN][26/10/2026][Rodriale][Cotizaciones de la cita del cliente]
 
     public async Task<IReadOnlyList<CitaPortalDto>> ObtenerCitasAsync(
         int idUsuario,

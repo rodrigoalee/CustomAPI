@@ -7,6 +7,9 @@ public class OrdenTrabajoDetalle
     public int OrdenTrabajoId { get; set; }
     public int? RepuestoId { get; set; }
     public int? ServicioId { get; set; }
+    //[INICIO][26/10/2026][Rodriale][Trabajo adicional aceptado en una cotización: concepto libre, sin catálogo]
+    public string? Descripcion { get; set; }
+    //[FIN][26/10/2026][Rodriale][Trabajo adicional aceptado en una cotización]
     public int Cantidad { get; set; }
     public decimal PrecioUnitario { get; set; }
     public decimal SubtotalEstimado { get; set; }

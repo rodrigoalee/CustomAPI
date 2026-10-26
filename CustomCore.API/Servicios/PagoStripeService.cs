@@ -41,7 +41,7 @@ namespace CustomCore.API.Servicios
         //[INICIO][16/9/2026][Rodriale][Crea la página de pago de Stripe para una factura pendiente y devuelve su enlace]
         public async Task<SesionPagoDto?> CrearSesionAsync(int facturaId, CancellationToken cancellationToken)
         {
-            var factura = await ObtenerFacturaPendienteAsync(facturaId, cancellationToken);
+            var factura = await ObtenerFacturaPendienteAsync(facturaId, validarSede: true, cancellationToken);
 
             if (factura is null)
                 return null;
@@ -94,12 +94,27 @@ namespace CustomCore.API.Servicios
         //[FIN][16/9/2026][Rodriale][Crea la página de pago de Stripe]
 
         //[INICIO][16/9/2026][Rodriale][Cobro directo con interfaz propia: el frontend manda el pm_ que generó Stripe Elements y el servidor crea y confirma el pago en una sola llamada]
-        public async Task<ResultadoCobroDto?> CobrarAsync(
+        public Task<ResultadoCobroDto?> CobrarAsync(
             int facturaId,
             CobrarFacturaRequest request,
+            CancellationToken cancellationToken) =>
+            CobrarInternoAsync(facturaId, request, validarSede: true, cancellationToken);
+
+        //[INICIO][26/10/2026][Rodriale][Cobro desde el enlace de pago: lo autoriza la firma del enlace, no una sesión con sede]
+        public Task<ResultadoCobroDto?> CobrarDesdeEnlaceAsync(
+            int facturaId,
+            string metodoPago,
+            CancellationToken cancellationToken) =>
+            CobrarInternoAsync(facturaId, new CobrarFacturaRequest(metodoPago), validarSede: false, cancellationToken);
+        //[FIN][26/10/2026][Rodriale][Cobro desde el enlace de pago]
+
+        private async Task<ResultadoCobroDto?> CobrarInternoAsync(
+            int facturaId,
+            CobrarFacturaRequest request,
+            bool validarSede,
             CancellationToken cancellationToken)
         {
-            var factura = await ObtenerFacturaPendienteAsync(facturaId, cancellationToken);
+            var factura = await ObtenerFacturaPendienteAsync(facturaId, validarSede, cancellationToken);
 
             if (factura is null)
                 return null;
@@ -208,10 +223,10 @@ namespace CustomCore.API.Servicios
         //[FIN][16/9/2026][Rodriale][Recibe el aviso de Stripe]
 
         //[INICIO][16/9/2026][Rodriale][Valida que la factura exista y no esté pagada antes de pedirle nada a Stripe]
-        private async Task<FacturaCobrable?> ObtenerFacturaPendienteAsync(int facturaId, CancellationToken cancellationToken)
+        private async Task<FacturaCobrable?> ObtenerFacturaPendienteAsync(int facturaId, bool validarSede, CancellationToken cancellationToken)
         {
             //[INICIO][12/10/2026][Rodriale][Cobrar una factura de otra sede responde 404; el webhook no pasa por aquí]
-            var alcance = await sucursal.AlcanceAsync(cancellationToken);
+            var alcance = validarSede ? await sucursal.AlcanceAsync(cancellationToken) : null;
             //[FIN][12/10/2026][Rodriale][Cobrar una factura de otra sede responde 404]
 
             var factura = await db.FacturasEncabezado

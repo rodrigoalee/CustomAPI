@@ -65,6 +65,9 @@ public static class PermisosSistema
     //[INICIO][25/10/2026][Rodriale][Marca al mecánico: puede recibir órdenes; sin ordenes.crear solo ve y toca las suyas]
     public const string OrdenesTrabajar = "ordenes.trabajar";
     //[FIN][25/10/2026][Rodriale][Marca al mecánico]
+    //[INICIO][26/10/2026][Rodriale][Cotizar trabajo fuera del catálogo y enviarlo al cliente]
+    public const string OrdenesCotizar = "ordenes.cotizar";
+    //[FIN][26/10/2026][Rodriale][Cotizar trabajo fuera del catálogo]
     //[FIN][17/9/2026][jgarciad8][Permisos de los módulos del taller]
 
     //[INICIO][17/9/2026][jgarciad8][Permisos de facturación y pagos]

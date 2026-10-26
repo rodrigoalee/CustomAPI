@@ -18,6 +18,11 @@ namespace CustomCore.API.Dtos
         [Range(1, int.MaxValue)]
         public int? SucursalId { get; init; }
         //[FIN][12/10/2026][Rodriale][Filtro por sede de la orden]
+
+        //[INICIO][26/10/2026][Rodriale][La factura de una orden, para la sección de cobro del detalle]
+        [Range(1, int.MaxValue)]
+        public int? OrdenTrabajoId { get; init; }
+        //[FIN][26/10/2026][Rodriale][La factura de una orden]
     }
     //[FIN][31/8/2026][Rodriale][Filtros del historial de cobros]
 
@@ -65,7 +70,9 @@ namespace CustomCore.API.Dtos
     //[INICIO][31/8/2026][Rodriale][Para facturar solo hace falta la orden y quién cobra: todo lo demás se copia de la orden]
     public record CrearFacturaRequest(
         [Range(1, int.MaxValue)] int OrdenTrabajoId,
-        [Range(1, int.MaxValue)] int UsuarioCajeroId);
+        //[INICIO][26/10/2026][Rodriale][Lo pone el controlador desde el JWT, como en las órdenes; el cliente no necesita mandarlo]
+        int UsuarioCajeroId = 0);
+        //[FIN][26/10/2026][Rodriale][Lo pone el controlador desde el JWT]
     //[FIN][31/8/2026][Rodriale][Para facturar solo hace falta la orden y quién cobra]
 
     //[INICIO][31/8/2026][Rodriale][Marcar el cobro; el StripePaymentId llega de verdad en la Fase 8, por ahora es la referencia del voucher]
