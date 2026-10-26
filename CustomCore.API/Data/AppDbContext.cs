@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CustomCore.API.Data
 {
     //[INICIO][2/10/2026][jgarciad8][Dependencia de auditoría; opcional para herramientas de diseño]
-    public sealed partial class AppDbContext(
+    public sealed partial class AppDbContext(   
         DbContextOptions<AppDbContext> options,
         Auditoria.AuditoriaInterceptor? auditoria = null) : DbContext(options)
     //[FIN][2/10/2026][jgarciad8][Dependencia de auditoría; opcional para herramientas de diseño]

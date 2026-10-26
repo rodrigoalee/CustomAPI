@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CustomCore.API.Servicios
 {
-    public sealed class OrdenTrabajoService(AppDbContext db, SucursalActual sucursal)
+    public sealed class OrdenTrabajoService(AppDbContext db, SucursalActual sucursal, NotificacionWhatsAppService whatsApp)
     {
         //[INICIO][12/10/2026][Rodriale][Lo que hace falta saber de una orden antes de tocarla]
         private sealed record OrdenEditable(EstadoOrdenTrabajo Estado, int SucursalId, int? MecanicoAsignadoId);
@@ -131,13 +131,19 @@ namespace CustomCore.API.Servicios
         //[FIN][31/8/2026][Rodriale][Detalle completo en una sola consulta]
 
         //[INICIO][31/8/2026][Rodriale][Crear orden: es todo o nada, si una línea se cae por stock no queda ni la orden ni el descuento]
-        public Task<int> CrearAsync(CrearOrdenRequest request, CancellationToken cancellationToken)
+        public async Task<int> CrearAsync(CrearOrdenRequest request, CancellationToken cancellationToken)
         {
             //[INICIO][31/8/2026][Rodriale][Como activamos EnableRetryOnFailure, EF exige que las transacciones manuales vayan envueltas en la estrategia de reintento; si no, revienta al abrir la transacción]
             //[INICIO][5/10/2026][jgarciad8][Unidad completa con verificación de COMMIT y restauración para reintentos]
-            return db.EjecutarUnidadAuditadaAsync(() => CrearInternoAsync(request, cancellationToken), cancellationToken);
+            var idOrden = await db.EjecutarUnidadAuditadaAsync(() => CrearInternoAsync(request, cancellationToken), cancellationToken);
             //[FIN][5/10/2026][jgarciad8][Unidad completa con verificación de COMMIT y restauración para reintentos]
             //[FIN][31/8/2026][Rodriale][Transacción manual envuelta en la estrategia de reintento]
+
+            //[INICIO][26/10/2026][Rodriale][El aviso sale después del COMMIT, para no avisar de una orden que se deshizo]
+            await whatsApp.VehiculoRecibidoAsync(idOrden);
+            //[FIN][26/10/2026][Rodriale][El aviso sale después del COMMIT]
+
+            return idOrden;
         }
 
         private async Task<int> CrearInternoAsync(CrearOrdenRequest request, CancellationToken cancellationToken)
@@ -328,37 +334,54 @@ namespace CustomCore.API.Servicios
         //[FIN][25/10/2026][Rodriale][Mecánicos de la sede con sus órdenes activas]
 
         //[INICIO][31/8/2026][Rodriale][Cambiar de estado; al finalizar se sella la fecha de salida, y si se reabre se limpia para no dejar una fecha mentirosa]
-        public Task<bool> CambiarEstadoAsync(
+        public async Task<bool> CambiarEstadoAsync(
             int ordenId,
             CambiarEstadoOrdenRequest request,
             CancellationToken cancellationToken)
-            => db.EjecutarUnidadAuditadaAsync<bool>(async () =>
         {
-            //[INICIO][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
-            var actual = await db.BloquearFilaAsync<OrdenTrabajoEncabezado>(ordenId, cancellationToken);
-            //[FIN][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
+            //[INICIO][26/10/2026][Rodriale][Se guarda de qué estado venía para avisar al cliente solo cuando de verdad avanza]
+            EstadoOrdenTrabajo? anterior = null;
+            //[FIN][26/10/2026][Rodriale][Se guarda de qué estado venía]
 
-            if (await ExisteYNoEstaFacturadaAsync(ordenId, cancellationToken) is null)
-                return false;
+            var actualizada = await db.EjecutarUnidadAuditadaAsync<bool>(async () =>
+            {
+                anterior = null;
+                //[INICIO][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
+                var actual = await db.BloquearFilaAsync<OrdenTrabajoEncabezado>(ordenId, cancellationToken);
+                //[FIN][5/10/2026][jgarciad8][Validación y cambio bajo el mismo bloqueo transaccional]
 
-            //[INICIO][5/10/2026][jgarciad8][Repetir el mismo estado no cambia la fecha ni crea otro log]
-            if (actual?.Estado == request.Estado) return true;
-            //[FIN][5/10/2026][jgarciad8][Repetir el mismo estado no cambia la fecha ni crea otro log]
-            var finalizacion = request.Estado == EstadoOrdenTrabajo.Finalizado
-                ? DateTimeOffset.UtcNow
-                : (DateTimeOffset?)null;
+                if (await ExisteYNoEstaFacturadaAsync(ordenId, cancellationToken) is null)
+                    return false;
 
-            await db.OrdenesTrabajoEncabezado
-                .Where(o => o.IdOrdenEncabezado == ordenId)
-                //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
-                .ActualizarAuditadoAsync(db, ordenId, s => s
-                    .SetProperty(o => o.Estado, request.Estado)
-                    .SetProperty(o => o.FechaFinalizacion, finalizacion),
-                    cancellationToken);
-            //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                //[INICIO][5/10/2026][jgarciad8][Repetir el mismo estado no cambia la fecha ni crea otro log]
+                if (actual?.Estado == request.Estado) return true;
+                //[FIN][5/10/2026][jgarciad8][Repetir el mismo estado no cambia la fecha ni crea otro log]
+                anterior = actual?.Estado;
+                var finalizacion = request.Estado == EstadoOrdenTrabajo.Finalizado
+                    ? DateTimeOffset.UtcNow
+                    : (DateTimeOffset?)null;
 
-            return true;
-        }, cancellationToken);
+                await db.OrdenesTrabajoEncabezado
+                    .Where(o => o.IdOrdenEncabezado == ordenId)
+                    //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+                    .ActualizarAuditadoAsync(db, ordenId, s => s
+                        .SetProperty(o => o.Estado, request.Estado)
+                        .SetProperty(o => o.FechaFinalizacion, finalizacion),
+                        cancellationToken);
+                //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+
+                return true;
+            }, cancellationToken);
+
+            //[INICIO][26/10/2026][Rodriale][Empezar avisa solo si venía de recepción (reabrir una terminada no repite el aviso); terminar siempre avisa]
+            if (actualizada && anterior == EstadoOrdenTrabajo.EnRecepcion && request.Estado == EstadoOrdenTrabajo.EnProceso)
+                await whatsApp.TrabajoIniciadoAsync(ordenId);
+            else if (actualizada && anterior is not null && request.Estado == EstadoOrdenTrabajo.Finalizado)
+                await whatsApp.TrabajoTerminadoAsync(ordenId);
+            //[FIN][26/10/2026][Rodriale][Avisos al cambiar de estado]
+
+            return actualizada;
+        }
         //[FIN][31/8/2026][Rodriale][Cambiar de estado]
 
         //[INICIO][31/8/2026][Rodriale][Agregar una línea a una orden ya abierta: mismo cuidado que al crearla, transacción y descuento de stock]
