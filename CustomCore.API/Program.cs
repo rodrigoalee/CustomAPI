@@ -48,6 +48,12 @@ builder.Services.AddScoped<SucursalService>();
 builder.Services.AddScoped<SucursalActual>();
 builder.Services.AddScoped<InventarioService>();
 builder.Services.AddScoped<RegistroService>();
+builder.Services.AddScoped<PortalService>();
+//[INICIO][25/10/2026][Rodriale][Avisos por WhatsApp; si faltan las credenciales la app arranca igual y solo deja de avisar]
+builder.Services.AddHttpClient<NotificacionWhatsAppService>();
+builder.Services.Configure<CustomCore.API.Configuracion.OpcionesWhatsApp>(
+    builder.Configuration.GetSection(CustomCore.API.Configuracion.OpcionesWhatsApp.Seccion));
+//[FIN][25/10/2026][Rodriale][Avisos por WhatsApp]
 //[FIN][Rodriale][Registro de inyección de dependencias]
 
 //[INICIO][31/8/2026][Rodriale][Enlaza la sección "Facturacion" de appsettings con las opciones de impuesto]

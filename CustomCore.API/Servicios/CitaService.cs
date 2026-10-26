@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CustomCore.API.Servicios
 {
-    public sealed class CitaService(AppDbContext db, SucursalActual sucursal)
+    public sealed class CitaService(AppDbContext db, SucursalActual sucursal, NotificacionWhatsAppService whatsApp)
     {
         //[INICIO][31/8/2026][Rodriale][Margen para acotar la ventana que se trae a memoria al validar solapamiento]
         private const int VentanaDias = 1;
@@ -38,6 +38,11 @@ namespace CustomCore.API.Servicios
             if (consulta.Estado is { } estado)
                 query = query.Where(c => c.Estado == estado);
 
+            //[INICIO][25/10/2026][Rodriale][Solo las que aún no tienen orden de trabajo]
+            if (consulta.SinOrden)
+                query = query.Where(c => !db.OrdenesTrabajoEncabezado.Any(o => o.CitaId == c.IdCita));
+            //[FIN][25/10/2026][Rodriale][Solo las que aún no tienen orden de trabajo]
+
             if (!string.IsNullOrWhiteSpace(consulta.Busqueda))
             {
                 var patron = $"%{consulta.Busqueda.Trim()}%";
@@ -60,7 +65,9 @@ namespace CustomCore.API.Servicios
                     c.Vehiculo.Cliente.NombreCompleto,
                     c.FechaHora,
                     c.DuracionMinutos,
-                    c.Estado))
+                    c.Estado,
+                    c.Servicio != null ? c.Servicio.Nombre : null,
+                    db.OrdenesTrabajoEncabezado.Where(o => o.CitaId == c.IdCita).Select(o => (int?)o.IdOrdenEncabezado).FirstOrDefault()))
                 .ToListAsync(cancellationToken);
 
             return new ResultadoPaginado<CitaListaDto>(items, consulta.Pagina, consulta.Tamanio, total);
@@ -88,7 +95,9 @@ namespace CustomCore.API.Servicios
                     c.FechaHora,
                     c.DuracionMinutos,
                     c.Motivo,
-                    c.Estado))
+                    c.Estado,
+                    c.Servicio != null ? c.Servicio.Nombre : null,
+                    db.OrdenesTrabajoEncabezado.Where(o => o.CitaId == c.IdCita).Select(o => (int?)o.IdOrdenEncabezado).FirstOrDefault()))
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
@@ -187,6 +196,11 @@ namespace CustomCore.API.Servicios
                 //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
                 .ActualizarAuditadoAsync(db, id, s => s.SetProperty(c => c.Estado, request.Estado), cancellationToken);
             //[FIN][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
+
+            //[INICIO][25/10/2026][Rodriale][Al confirmar, el cliente recibe el aviso por WhatsApp]
+            if (filasAfectadas > 0 && request.Estado == EstadoCita.Confirmada)
+                await whatsApp.CitaConfirmadaAsync(id);
+            //[FIN][25/10/2026][Rodriale][Al confirmar, el cliente recibe el aviso por WhatsApp]
 
             return filasAfectadas > 0;
         }
