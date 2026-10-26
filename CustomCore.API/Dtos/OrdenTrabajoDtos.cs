@@ -42,6 +42,13 @@ namespace CustomCore.API.Dtos
         //[FIN][25/10/2026][Rodriale][Mecánico y servicio para el tablero]
     //[FIN][31/8/2026][Rodriale][Fila del listado]
 
+    //[INICIO][26/10/2026][Rodriale][Contadores del filtro por estado]
+    public record ConteoOrdenesPorEstadoDto(
+        int EnRecepcion,
+        int EnProceso,
+        int Finalizado);
+    //[FIN][26/10/2026][Rodriale][Contadores del filtro por estado]
+
     //[INICIO][31/8/2026][Rodriale][Vista completa de la orden: encabezado, responsables y el desglose de trabajo]
     public record OrdenDetalleDto(
         int IdOrdenEncabezado,
