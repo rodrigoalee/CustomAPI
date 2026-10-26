@@ -22,7 +22,10 @@ public record UsuarioSesionDto(
     int IdUsuario,
     string NombreCompleto,
     string Correo,
-    bool PerfilCompleto);
+    bool PerfilCompleto,
+    //[INICIO][25/10/2026][Rodriale][Solo /me los llena: el front decide con ellos qué zona y qué módulos mostrar; la autorización real sigue en cada endpoint]
+    IReadOnlyList<string>? Permisos = null);
+    //[FIN][25/10/2026][Rodriale][Solo /me los llena]
 //[FIN][23/10/2026][Rodriale][PerfilCompleto es ClienteId no nulo]
 
 

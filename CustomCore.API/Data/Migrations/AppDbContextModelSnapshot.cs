@@ -47,6 +47,9 @@ namespace CustomCore.API.Data.Migrations
                     b.Property<string>("Motivo")
                         .HasColumnType("text");
 
+                    b.Property<int?>("ServicioId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("SucursalId")
                         .HasColumnType("integer");
 
@@ -56,6 +59,8 @@ namespace CustomCore.API.Data.Migrations
                     b.HasKey("IdCita");
 
                     b.HasIndex("FechaHora");
+
+                    b.HasIndex("ServicioId");
 
                     b.HasIndex("SucursalId");
 
@@ -332,6 +337,9 @@ namespace CustomCore.API.Data.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("IdOrdenEncabezado"));
 
+                    b.Property<int?>("CitaId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Diagnostico")
                         .HasColumnType("text");
 
@@ -349,6 +357,10 @@ namespace CustomCore.API.Data.Migrations
                     b.Property<int?>("MecanicoAsignadoId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("MotivoIngreso")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<int>("SucursalId")
                         .HasColumnType("integer");
 
@@ -363,6 +375,9 @@ namespace CustomCore.API.Data.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("IdOrdenEncabezado");
+
+                    b.HasIndex("CitaId")
+                        .IsUnique();
 
                     b.HasIndex("Estado");
 
@@ -664,6 +679,11 @@ namespace CustomCore.API.Data.Migrations
 
             modelBuilder.Entity("CustomCore.API.Entidades.Cita", b =>
                 {
+                    b.HasOne("CustomCore.API.Entidades.Servicio", "Servicio")
+                        .WithMany()
+                        .HasForeignKey("ServicioId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("CustomCore.API.Entidades.Sucursal", null)
                         .WithMany()
                         .HasForeignKey("SucursalId")
@@ -675,6 +695,8 @@ namespace CustomCore.API.Data.Migrations
                         .HasForeignKey("VehiculoId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Servicio");
 
                     b.Navigation("Vehiculo");
                 });
@@ -769,6 +791,11 @@ namespace CustomCore.API.Data.Migrations
 
             modelBuilder.Entity("CustomCore.API.Entidades.OrdenTrabajoEncabezado", b =>
                 {
+                    b.HasOne("CustomCore.API.Entidades.Cita", "Cita")
+                        .WithOne()
+                        .HasForeignKey("CustomCore.API.Entidades.OrdenTrabajoEncabezado", "CitaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("CustomCore.API.Entidades.Usuario", "MecanicoAsignado")
                         .WithMany()
                         .HasForeignKey("MecanicoAsignadoId")
@@ -791,6 +818,8 @@ namespace CustomCore.API.Data.Migrations
                         .HasForeignKey("VehiculoId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Cita");
 
                     b.Navigation("MecanicoAsignado");
 
