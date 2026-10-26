@@ -25,6 +25,32 @@ namespace CustomCore.API.Controllers
             servicio.ObtenerAsync(consulta, cancellationToken);
         //[FIN][31/8/2026][Rodriale][Tablero de órdenes]
 
+        //[INICIO][25/10/2026][Rodriale][Mecánicos de la sede con su carga, para elegir a quién asignar]
+        [HttpGet("mecanicos")]
+        [Authorize(Policy = PermisosSistema.OrdenesCrear)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public Task<IReadOnlyList<MecanicoDisponibleDto>> ObtenerMecanicos(
+            [FromQuery] int? sucursalId,
+            CancellationToken cancellationToken) =>
+            servicio.ObtenerMecanicosAsync(sucursalId, cancellationToken);
+        //[FIN][25/10/2026][Rodriale][Mecánicos de la sede con su carga]
+
+        //[INICIO][25/10/2026][Rodriale][El mecánico escribe su diagnóstico sin poder reasignar la orden]
+        [HttpPatch("{id:int}/diagnostico")]
+        [Authorize(Policy = PermisosSistema.OrdenesEditar)]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<ActionResult> ActualizarDiagnostico(
+            int id,
+            ActualizarDiagnosticoRequest request,
+            CancellationToken cancellationToken)
+        {
+            var actualizada = await servicio.ActualizarDiagnosticoAsync(id, request, cancellationToken);
+            return actualizada ? NoContent() : NotFound();
+        }
+        //[FIN][25/10/2026][Rodriale][El mecánico escribe su diagnóstico]
+
         //[INICIO][31/8/2026][Rodriale][Detalle de una orden; si no existe se responde 404 y no un 200 con nulos]
         [HttpGet("{id:int}")]
         [Authorize(Policy = PermisosSistema.OrdenesLeer)]

@@ -33,6 +33,13 @@ public sealed class CitaConfiguration : IEntityTypeConfiguration<Cita>
             .HasForeignKey(c => c.SucursalId)
             .OnDelete(DeleteBehavior.Restrict);
         //[FIN][12/10/2026][Rodriale][Sede de la cita]
+
+        //[INICIO][23/10/2026][Rodriale][Servicio de la cita]
+        builder.HasOne(c => c.Servicio)
+            .WithMany()
+            .HasForeignKey(c => c.ServicioId)
+            .OnDelete(DeleteBehavior.Restrict);
+        //[FIN][23/10/2026][Rodriale][Servicio de la cita]
     }
 }
 //[FIN][28/8/2026][Rodriale][Mapeo de Cita, estado como texto y relación con Vehiculo]

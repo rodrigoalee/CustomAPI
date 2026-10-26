@@ -27,6 +27,14 @@ namespace CustomCore.API.Servicios
                 query = query.Where(o => o.SucursalId == sucursalId);
             //[FIN][12/10/2026][Rodriale][El empleado solo ve su sede]
 
+            //[INICIO][25/10/2026][Rodriale][El mecánico restringido solo ve las suyas aunque no lo pida]
+            var mecanico = await sucursal.MecanicoRestringidoAsync(cancellationToken);
+            if (mecanico is null && consulta.AsignadasAMi)
+                mecanico = await sucursal.UsuarioIdAsync(cancellationToken);
+            if (mecanico is { } idMecanico)
+                query = query.Where(o => o.MecanicoAsignadoId == idMecanico);
+            //[FIN][25/10/2026][Rodriale][El mecánico restringido solo ve las suyas]
+
             if (consulta.VehiculoId is { } vehiculoId)
                 query = query.Where(o => o.VehiculoId == vehiculoId);
 
@@ -64,7 +72,9 @@ namespace CustomCore.API.Servicios
                     o.FechaIngreso,
                     o.FechaFinalizacion,
                     o.Estado,
-                    o.TotalEstimado))
+                    o.TotalEstimado,
+                    o.MecanicoAsignado != null ? o.MecanicoAsignado.NombreCompleto : null,
+                    o.Cita != null && o.Cita.Servicio != null ? o.Cita.Servicio.Nombre : null))
                 .ToListAsync(cancellationToken);
 
             return new ResultadoPaginado<OrdenListaDto>(items, consulta.Pagina, consulta.Tamanio, total);
@@ -77,10 +87,14 @@ namespace CustomCore.API.Servicios
             //[INICIO][12/10/2026][Rodriale][Una orden de otra sede se comporta como inexistente]
             var alcance = await sucursal.AlcanceAsync(cancellationToken);
             //[FIN][12/10/2026][Rodriale][Una orden de otra sede se comporta como inexistente]
+            //[INICIO][25/10/2026][Rodriale][La orden de otro mecánico también se comporta como inexistente]
+            var mecanico = await sucursal.MecanicoRestringidoAsync(cancellationToken);
+            //[FIN][25/10/2026][Rodriale][La orden de otro mecánico también se comporta como inexistente]
 
             return await db.OrdenesTrabajoEncabezado
                 .AsNoTracking()
                 .Where(o => o.IdOrdenEncabezado == id && (alcance == null || o.SucursalId == alcance))
+                .Where(o => mecanico == null || o.MecanicoAsignadoId == mecanico)
                 .Select(o => new OrdenDetalleDto(
                     o.IdOrdenEncabezado,
                     o.SucursalId,
@@ -108,7 +122,10 @@ namespace CustomCore.API.Servicios
                             d.Cantidad,
                             d.PrecioUnitario,
                             d.SubtotalEstimado))
-                        .ToList()))
+                        .ToList(),
+                    o.CitaId,
+                    o.MotivoIngreso,
+                    o.MecanicoAsignadoId))
                 .FirstOrDefaultAsync(cancellationToken);
         }
         //[FIN][31/8/2026][Rodriale][Detalle completo en una sola consulta]
@@ -125,32 +142,48 @@ namespace CustomCore.API.Servicios
 
         private async Task<int> CrearInternoAsync(CrearOrdenRequest request, CancellationToken cancellationToken)
         {
+            //[INICIO][25/10/2026][Rodriale][Toda orden nace de una cita: se bloquea primero y de ella salen el carro y la sede]
+            var cita = await ValidarCitaAsync(request.CitaId, cancellationToken);
+            //[FIN][25/10/2026][Rodriale][Toda orden nace de una cita]
+
             //[INICIO][12/10/2026][Rodriale][La sede se decide antes de mover stock: de ella sale lo que se descuenta]
-            var sucursalId = await sucursal.ResolverAsync(request.SucursalId, cancellationToken);
+            var sucursalId = await sucursal.ResolverAsync(cita.SucursalId, cancellationToken);
             //[FIN][12/10/2026][Rodriale][La sede se decide antes de mover stock]
 
             await ValidarMecanicoAsync(request.MecanicoAsignadoId, sucursalId, cancellationToken);
 
+            //[INICIO][25/10/2026][Rodriale][El servicio de la cita entra solo como primera línea, si sigue activo y no viene ya en el request]
+            var lineas = new List<CrearLineaOrdenRequest>();
+            if (cita.ServicioId is { } servicioCita
+                && !(request.Lineas ?? []).Any(l => l.ServicioId == servicioCita)
+                && await db.Servicios.AsNoTracking().AnyAsync(s => s.IdServicio == servicioCita && s.Activo, cancellationToken))
+            {
+                lineas.Add(new CrearLineaOrdenRequest(null, servicioCita, 1));
+            }
+            lineas.AddRange(request.Lineas ?? []);
+            //[FIN][25/10/2026][Rodriale][El servicio de la cita entra solo como primera línea]
+
             //[INICIO][31/8/2026][Rodriale][Primero se valida que todo lo pedido exista y esté activo, antes de mover una sola pieza de bodega]
-            var repuestos = await CargarRepuestosAsync(request.Lineas, cancellationToken);
-            var servicios = await CargarServiciosAsync(request.Lineas, cancellationToken);
+            var repuestos = await CargarRepuestosAsync(lineas, cancellationToken);
+            var servicios = await CargarServiciosAsync(lineas, cancellationToken);
             //[FIN][31/8/2026][Rodriale][Primero se valida que todo exista y esté activo]
 
-            await DescontarStockAsync(sucursalId, request.Lineas, repuestos, cancellationToken);
+            await DescontarStockAsync(sucursalId, lineas, repuestos, cancellationToken);
 
             var orden = new OrdenTrabajoEncabezado
             {
-                VehiculoId = request.VehiculoId,
+                VehiculoId = cita.VehiculoId,
                 SucursalId = sucursalId,
                 UsuarioRecepcionId = request.UsuarioRecepcionId,
                 MecanicoAsignadoId = request.MecanicoAsignadoId,
                 FechaIngreso = DateTimeOffset.UtcNow,
-                Diagnostico = request.Diagnostico,
-                Estado = EstadoOrdenTrabajo.EnRecepcion
+                MotivoIngreso = string.IsNullOrWhiteSpace(request.MotivoIngreso) ? null : request.MotivoIngreso.Trim(),
+                Estado = EstadoOrdenTrabajo.EnRecepcion,
+                CitaId = cita.IdCita
             };
 
             //[INICIO][31/8/2026][Rodriale][El precio sale del catálogo, no del request: así nadie cotiza al precio que se le antoje, y queda congelado por si mañana sube]
-            foreach (var linea in request.Lineas)
+            foreach (var linea in lineas)
             {
                 var precioUnitario = linea.RepuestoId is { } repuestoId
                     ? repuestos[repuestoId].PrecioUnitario
@@ -172,9 +205,39 @@ namespace CustomCore.API.Servicios
             db.OrdenesTrabajoEncabezado.Add(orden);
             await db.SaveChangesAsync(cancellationToken);
 
+            //[INICIO][24/10/2026][Rodriale][Si el carro ya llegó, la cita se dio: se confirma sola para que el seguimiento no se quede en "agendada"]
+            if (cita is { Estado: EstadoCita.Pendiente })
+            {
+                await db.Citas
+                    .Where(c => c.IdCita == cita.IdCita)
+                    .ActualizarAuditadoAsync(db, cita.IdCita, s => s
+                        .SetProperty(c => c.Estado, EstadoCita.Confirmada),
+                        cancellationToken);
+            }
+            //[FIN][24/10/2026][Rodriale][Si el carro ya llegó, la cita se dio]
+
             return orden.IdOrdenEncabezado;
         }
         //[FIN][31/8/2026][Rodriale][Crear orden: es todo o nada]
+
+        //[INICIO][24/10/2026][Rodriale][La cita debe seguir vigente y no tener ya otra orden; la sede la valida ResolverAsync]
+        private async Task<Cita> ValidarCitaAsync(
+            int citaId,
+            CancellationToken cancellationToken)
+        {
+            var cita = await db.BloquearFilaAsync<Cita>(citaId, cancellationToken)
+                ?? throw new ConflictoNegocioException("La cita no existe.");
+
+            if (cita.Estado == EstadoCita.Cancelada)
+                throw new ConflictoNegocioException("La cita está cancelada; no se le puede abrir una orden.");
+
+            if (await db.OrdenesTrabajoEncabezado.AsNoTracking()
+                    .AnyAsync(o => o.CitaId == citaId, cancellationToken))
+                throw new ConflictoNegocioException("Esa cita ya tiene una orden de trabajo.");
+
+            return cita;
+        }
+        //[FIN][24/10/2026][Rodriale][La cita debe seguir vigente y no tener ya otra orden]
 
         //[INICIO][31/8/2026][Rodriale][Actualizar el encabezado: notas del mecánico y a quién se le asigna. No toca líneas ni totales]
         public Task<bool> ActualizarAsync(
@@ -193,7 +256,13 @@ namespace CustomCore.API.Servicios
 
             //[INICIO][12/10/2026][Rodriale][Solo se valida si cambia: un mecánico ya asignado que luego cambió de sede no debe bloquear editar el diagnóstico]
             if (request.MecanicoAsignadoId != orden.MecanicoAsignadoId)
+            {
+                //[INICIO][25/10/2026][Rodriale][Reasignar es cosa de recepción; el mecánico no se quita ni se pasa órdenes]
+                if (await sucursal.MecanicoRestringidoAsync(cancellationToken) is not null)
+                    throw new AccesoDenegadoException("Solo recepción puede cambiar el mecánico asignado.");
+                //[FIN][25/10/2026][Rodriale][Reasignar es cosa de recepción]
                 await ValidarMecanicoAsync(request.MecanicoAsignadoId, orden.SucursalId, cancellationToken);
+            }
             //[FIN][12/10/2026][Rodriale][Solo se valida si cambia]
 
             await db.OrdenesTrabajoEncabezado
@@ -208,6 +277,55 @@ namespace CustomCore.API.Servicios
             return true;
         }, cancellationToken);
         //[FIN][31/8/2026][Rodriale][Actualizar el encabezado]
+
+        //[INICIO][25/10/2026][Rodriale][Solo el diagnóstico: el mecánico lo escribe sin poder tocar la asignación]
+        public Task<bool> ActualizarDiagnosticoAsync(
+            int ordenId,
+            ActualizarDiagnosticoRequest request,
+            CancellationToken cancellationToken)
+            => db.EjecutarUnidadAuditadaAsync<bool>(async () =>
+        {
+            await db.BloquearFilaAsync<OrdenTrabajoEncabezado>(ordenId, cancellationToken);
+
+            if (await ExisteYNoEstaFacturadaAsync(ordenId, cancellationToken) is null)
+                return false;
+
+            var diagnostico = string.IsNullOrWhiteSpace(request.Diagnostico) ? null : request.Diagnostico.Trim();
+
+            await db.OrdenesTrabajoEncabezado
+                .Where(o => o.IdOrdenEncabezado == ordenId)
+                .ActualizarAuditadoAsync(db, ordenId, s => s.SetProperty(o => o.Diagnostico, diagnostico), cancellationToken);
+
+            return true;
+        }, cancellationToken);
+        //[FIN][25/10/2026][Rodriale][Solo el diagnóstico]
+
+        //[INICIO][25/10/2026][Rodriale][Mecánicos de la sede con sus órdenes activas: disponibles primero, luego los menos cargados]
+        public async Task<IReadOnlyList<MecanicoDisponibleDto>> ObtenerMecanicosAsync(
+            int? sucursalId,
+            CancellationToken cancellationToken)
+        {
+            var sede = await sucursal.AlcanceAsync(cancellationToken) ?? sucursalId
+                ?? throw new SolicitudInvalidaException("Indica la sucursal (sucursalId).");
+
+            return await db.Usuarios
+                .AsNoTracking()
+                .Where(u => u.Activo && u.SucursalId == sede
+                    && u.UsuarioRoles.Any(ur => ur.Rol.RolPermisos.Any(
+                        rp => rp.Permiso.NombreCodigo == PermisosSistema.OrdenesTrabajar)))
+                .Select(u => new
+                {
+                    u.IdUsuario,
+                    u.NombreCompleto,
+                    OrdenesActivas = db.OrdenesTrabajoEncabezado.Count(o => o.MecanicoAsignadoId == u.IdUsuario
+                        && o.Estado != EstadoOrdenTrabajo.Finalizado)
+                })
+                .OrderBy(m => m.OrdenesActivas)
+                .ThenBy(m => m.NombreCompleto)
+                .Select(m => new MecanicoDisponibleDto(m.IdUsuario, m.NombreCompleto, m.OrdenesActivas))
+                .ToListAsync(cancellationToken);
+        }
+        //[FIN][25/10/2026][Rodriale][Mecánicos de la sede con sus órdenes activas]
 
         //[INICIO][31/8/2026][Rodriale][Cambiar de estado; al finalizar se sella la fecha de salida, y si se reabre se limpia para no dejar una fecha mentirosa]
         public Task<bool> CambiarEstadoAsync(
@@ -359,10 +477,14 @@ namespace CustomCore.API.Servicios
             //[INICIO][12/10/2026][Rodriale][Editar una orden de otra sede responde 404, igual que si no existiera]
             var alcance = await sucursal.AlcanceAsync(cancellationToken);
             //[FIN][12/10/2026][Rodriale][Editar una orden de otra sede responde 404]
+            //[INICIO][25/10/2026][Rodriale][El mecánico restringido no toca órdenes ajenas: 404]
+            var mecanico = await sucursal.MecanicoRestringidoAsync(cancellationToken);
+            //[FIN][25/10/2026][Rodriale][El mecánico restringido no toca órdenes ajenas]
 
             var info = await db.OrdenesTrabajoEncabezado
                 .AsNoTracking()
                 .Where(o => o.IdOrdenEncabezado == ordenId && (alcance == null || o.SucursalId == alcance))
+                .Where(o => mecanico == null || o.MecanicoAsignadoId == mecanico)
                 .Select(o => new
                 {
                     o.Estado,
@@ -427,11 +549,16 @@ namespace CustomCore.API.Servicios
 
             var esDeLaSede = await db.Usuarios
                 .AsNoTracking()
-                .AnyAsync(u => u.IdUsuario == id && u.Activo && u.SucursalId == sucursalId, cancellationToken);
+                .AnyAsync(u => u.IdUsuario == id && u.Activo && u.SucursalId == sucursalId
+                    //[INICIO][25/10/2026][Rodriale][Solo se asigna a quien es mecánico]
+                    && u.UsuarioRoles.Any(ur => ur.Rol.RolPermisos.Any(
+                        rp => rp.Permiso.NombreCodigo == PermisosSistema.OrdenesTrabajar)),
+                    //[FIN][25/10/2026][Rodriale][Solo se asigna a quien es mecánico]
+                    cancellationToken);
 
             if (!esDeLaSede)
                 throw new ConflictoNegocioException(
-                    "El mecánico asignado no existe, está inactivo o no pertenece a la sucursal de la orden.");
+                    "El mecánico asignado no existe, está inactivo, no es mecánico o no pertenece a la sucursal de la orden.");
         }
         //[FIN][12/10/2026][Rodriale][El mecánico asignado tiene que trabajar en la sede de la orden]
 

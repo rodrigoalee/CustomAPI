@@ -294,7 +294,8 @@ public static class ConfiguracionSeguridad
                 PermisosSistema.OrdenesLeer,
                 PermisosSistema.OrdenesCrear,
                 PermisosSistema.OrdenesEditar,
-                PermisosSistema.OrdenesCambiarEstado
+                PermisosSistema.OrdenesCambiarEstado,
+                PermisosSistema.OrdenesTrabajar
             })
             {
                 opciones.AddPolicy(codigo, politica =>
