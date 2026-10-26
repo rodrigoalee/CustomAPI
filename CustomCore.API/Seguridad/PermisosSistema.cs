@@ -62,6 +62,9 @@ public static class PermisosSistema
     public const string OrdenesCrear = "ordenes.crear";
     public const string OrdenesEditar = "ordenes.editar";
     public const string OrdenesCambiarEstado = "ordenes.cambiar_estado";
+    //[INICIO][25/10/2026][Rodriale][Marca al mecánico: puede recibir órdenes; sin ordenes.crear solo ve y toca las suyas]
+    public const string OrdenesTrabajar = "ordenes.trabajar";
+    //[FIN][25/10/2026][Rodriale][Marca al mecánico]
     //[FIN][17/9/2026][jgarciad8][Permisos de los módulos del taller]
 
     //[INICIO][17/9/2026][jgarciad8][Permisos de facturación y pagos]

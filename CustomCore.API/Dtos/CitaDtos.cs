@@ -17,6 +17,10 @@ namespace CustomCore.API.Dtos
         //[INICIO][12/10/2026][Rodriale][Filtro por sede; solo lo respeta quien ve todas]
         [Range(1, int.MaxValue)]
         public int? SucursalId { get; init; }
+
+        //[INICIO][25/10/2026][Rodriale][Citas a las que todavía no se les abrió orden, para el tablero de recepción]
+        public bool SinOrden { get; init; }
+        //[FIN][25/10/2026][Rodriale][Citas a las que todavía no se les abrió orden]
         //[FIN][12/10/2026][Rodriale][Filtro por sede]
     }
     //[FIN][31/8/2026][Rodriale][Filtros de agenda: por vehículo, por rango de fechas y por estado]
@@ -29,7 +33,11 @@ namespace CustomCore.API.Dtos
         string NombreCliente,
         DateTimeOffset FechaHora,
         int DuracionMinutos,
-        EstadoCita Estado);
+        EstadoCita Estado,
+        //[INICIO][25/10/2026][Rodriale][Servicio pedido y orden abierta, si la hay]
+        string? Servicio,
+        int? IdOrden);
+        //[FIN][25/10/2026][Rodriale][Servicio pedido y orden abierta]
 
     public record CitaDetalleDto(
         int IdCita,
@@ -44,7 +52,11 @@ namespace CustomCore.API.Dtos
         DateTimeOffset FechaHora,
         int DuracionMinutos,
         string? Motivo,
-        EstadoCita Estado);
+        EstadoCita Estado,
+        //[INICIO][25/10/2026][Rodriale][Servicio pedido y orden abierta, si la hay]
+        string? Servicio,
+        int? IdOrden);
+        //[FIN][25/10/2026][Rodriale][Servicio pedido y orden abierta]
 
     public record CrearCitaRequest(
         [Range(1, int.MaxValue)] int VehiculoId,
