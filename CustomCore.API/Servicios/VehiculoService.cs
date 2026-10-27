@@ -67,10 +67,16 @@ namespace CustomCore.API.Servicios
 
         public async Task<int> CrearAsync(CrearVehiculosRequest request, CancellationToken cancellationToken)
         {
+            //[INICIO][27/10/2026][Rodriale][Misma placa con o sin guion es la misma: se normaliza y se revisa antes de guardar]
+            var placa = PlacaVehiculo.Normalizar(request.Placa);
+            await PlacaVehiculo.ValidarQueNoExisteAsync(
+                db, placa, vehiculoExcluido: null, "Ya hay un vehículo registrado con esa placa.", cancellationToken);
+            //[FIN][27/10/2026][Rodriale][Misma placa con o sin guion es la misma]
+
             var vehiculo = new Vehiculo
             {
                 ClienteId = request.ClienteId,
-                Placa = request.Placa,
+                Placa = placa,
                 Marca = request.Marca,
                 Modelo = request.Modelo,
                 Anio = request.Anio
@@ -87,12 +93,18 @@ namespace CustomCore.API.Servicios
             ActualizarVehiculoRequest request,
             CancellationToken cancellationToken)
         {
+            //[INICIO][27/10/2026][Rodriale][Al editar se excluye el propio vehículo de la búsqueda de duplicados]
+            var placa = PlacaVehiculo.Normalizar(request.Placa);
+            await PlacaVehiculo.ValidarQueNoExisteAsync(
+                db, placa, vehiculoExcluido: id, "Ya hay un vehículo registrado con esa placa.", cancellationToken);
+            //[FIN][27/10/2026][Rodriale][Al editar se excluye el propio vehículo]
+
             var filasAfectadas = await db.Vehiculos
                 .Where(v => v.IdVehiculo == id)
                 //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
                 .ActualizarAuditadoAsync(db, id, s => s
                     .SetProperty(v => v.ClienteId, request.ClienteId)
-                    .SetProperty(v => v.Placa, request.Placa)
+                    .SetProperty(v => v.Placa, placa)
                     .SetProperty(v => v.Marca, request.Marca)
                     .SetProperty(v => v.Modelo, request.Modelo)
                     .SetProperty(v => v.Anio, request.Anio),

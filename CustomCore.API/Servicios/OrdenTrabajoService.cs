@@ -238,6 +238,25 @@ namespace CustomCore.API.Servicios
             }
             //[FIN][31/8/2026][Rodriale][El precio sale del catálogo, no del request]
 
+            //[INICIO][27/10/2026][Rodriale][Lo cotizado y aceptado antes de la visita entra a la orden al precio acordado]
+            var cotizado = await db.Cotizaciones.AsNoTracking()
+                .Where(c => c.CitaId == cita.IdCita && c.Estado == EstadoCotizacion.Aceptada)
+                .SelectMany(c => c.Detalles)
+                .OrderBy(d => d.IdCotizacionDetalle)
+                .ToListAsync(cancellationToken);
+
+            foreach (var detalle in cotizado)
+            {
+                orden.Detalles.Add(new OrdenTrabajoDetalle
+                {
+                    Descripcion = detalle.Descripcion,
+                    Cantidad = detalle.Cantidad,
+                    PrecioUnitario = detalle.PrecioUnitario,
+                    SubtotalEstimado = detalle.Subtotal
+                });
+            }
+            //[FIN][27/10/2026][Rodriale][Lo cotizado antes de la visita entra a la orden]
+
             orden.TotalEstimado = orden.Detalles.Sum(d => d.SubtotalEstimado);
 
             db.OrdenesTrabajoEncabezado.Add(orden);
@@ -268,6 +287,11 @@ namespace CustomCore.API.Servicios
 
             if (cita.Estado == EstadoCita.Cancelada)
                 throw new ConflictoNegocioException("La cita está cancelada; no se le puede abrir una orden.");
+
+            //[INICIO][27/10/2026][Rodriale][Fuera del catálogo, el vehículo se recibe solo con la cotización aceptada (la cita ya confirmada)]
+            if (cita is { ServicioPersonalizado: true, Estado: EstadoCita.Pendiente })
+                throw new ConflictoNegocioException("Primero el cliente debe aceptar la cotización de esta cita.");
+            //[FIN][27/10/2026][Rodriale][Fuera del catálogo, se recibe con la cotización aceptada]
 
             if (await db.OrdenesTrabajoEncabezado.AsNoTracking()
                     .AnyAsync(o => o.CitaId == citaId, cancellationToken))

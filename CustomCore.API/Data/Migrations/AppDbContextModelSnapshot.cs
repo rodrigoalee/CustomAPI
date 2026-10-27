@@ -50,6 +50,9 @@ namespace CustomCore.API.Data.Migrations
                     b.Property<int?>("ServicioId")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("ServicioPersonalizado")
+                        .HasColumnType("boolean");
+
                     b.Property<int>("SucursalId")
                         .HasColumnType("integer");
 
@@ -112,6 +115,9 @@ namespace CustomCore.API.Data.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("IdCotizacion"));
 
+                    b.Property<int?>("CitaId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Estado")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -127,7 +133,7 @@ namespace CustomCore.API.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<int>("OrdenTrabajoId")
+                    b.Property<int?>("OrdenTrabajoId")
                         .HasColumnType("integer");
 
                     b.Property<decimal>("Total")
@@ -139,11 +145,16 @@ namespace CustomCore.API.Data.Migrations
 
                     b.HasKey("IdCotizacion");
 
+                    b.HasIndex("CitaId");
+
                     b.HasIndex("OrdenTrabajoId");
 
                     b.HasIndex("UsuarioCreaId");
 
-                    b.ToTable("Cotizaciones", "customcore");
+                    b.ToTable("Cotizaciones", "customcore", t =>
+                        {
+                            t.HasCheckConstraint("CK_Cotizaciones_UnSoloDueno", "(\"OrdenTrabajoId\" IS NULL) <> (\"CitaId\" IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("CustomCore.API.Entidades.CotizacionDetalle", b =>
@@ -788,17 +799,23 @@ namespace CustomCore.API.Data.Migrations
 
             modelBuilder.Entity("CustomCore.API.Entidades.Cotizacion", b =>
                 {
+                    b.HasOne("CustomCore.API.Entidades.Cita", "Cita")
+                        .WithMany()
+                        .HasForeignKey("CitaId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("CustomCore.API.Entidades.OrdenTrabajoEncabezado", "OrdenTrabajo")
                         .WithMany()
                         .HasForeignKey("OrdenTrabajoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("CustomCore.API.Entidades.Usuario", null)
                         .WithMany()
                         .HasForeignKey("UsuarioCreaId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Cita");
 
                     b.Navigation("OrdenTrabajo");
                 });

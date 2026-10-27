@@ -52,7 +52,10 @@ namespace CustomCore.API.Servicios
         {
             return await db.Cotizaciones
                 .AsNoTracking()
-                .Where(c => c.OrdenTrabajo.CitaId == idCita && c.OrdenTrabajo.Vehiculo.ClienteId == clienteId)
+                //[INICIO][27/10/2026][Rodriale][Incluye la cotización previa a la visita, que cuelga directo de la cita]
+                .Where(c => (c.CitaId == idCita && c.Cita!.Vehiculo.ClienteId == clienteId)
+                    || (c.OrdenTrabajo!.CitaId == idCita && c.OrdenTrabajo.Vehiculo.ClienteId == clienteId))
+                //[FIN][27/10/2026][Rodriale][Incluye la cotización previa a la visita]
                 .OrderByDescending(c => c.IdCotizacion)
                 .Select(AProyeccion)
                 .ToListAsync(cancellationToken);
@@ -69,9 +72,73 @@ namespace CustomCore.API.Servicios
             if (await ordenes.EstaAbiertaParaEditarLineasAsync(ordenId, cancellationToken) is null)
                 return null;
 
+            var cotizacion = Armar(request, usuarioId);
+            cotizacion.OrdenTrabajoId = ordenId;
+
+            await db.EjecutarUnidadAuditadaAsync(async () =>
+            {
+                db.Cotizaciones.Add(cotizacion);
+                await db.SaveChangesAsync(cancellationToken);
+                return cotizacion.IdCotizacion;
+            }, cancellationToken);
+
+            await whatsApp.CotizacionEnviadaAsync(ordenId, cotizacion.Total);
+            return cotizacion.IdCotizacion;
+        }
+        //[FIN][26/10/2026][Rodriale][Alta de la cotización]
+
+        //[INICIO][27/10/2026][Rodriale][Cotización previa a la visita: solo para citas fuera del catálogo, pendientes y sin otra cotización esperando respuesta]
+        public async Task<IReadOnlyList<CotizacionDto>> ObtenerDeCitaAsync(int citaId, CancellationToken cancellationToken)
+        {
+            var alcance = await sucursal.AlcanceAsync(cancellationToken);
+
+            return await db.Cotizaciones
+                .AsNoTracking()
+                .Where(c => c.CitaId == citaId && (alcance == null || c.Cita!.SucursalId == alcance))
+                .OrderByDescending(c => c.IdCotizacion)
+                .Select(AProyeccion)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<int?> CrearDeCitaAsync(
+            int citaId,
+            CrearCotizacionRequest request,
+            int usuarioId,
+            CancellationToken cancellationToken)
+        {
+            var alcance = await sucursal.AlcanceAsync(cancellationToken);
+            var cotizacion = Armar(request, usuarioId);
+            cotizacion.CitaId = citaId;
+
+            var creada = await db.EjecutarUnidadAuditadaAsync<bool>(async () =>
+            {
+                var cita = await db.BloquearFilaAsync<Cita>(citaId, cancellationToken);
+                if (cita is null || (alcance is not null && cita.SucursalId != alcance))
+                    return false;
+
+                if (!cita.ServicioPersonalizado || cita.Estado != EstadoCita.Pendiente)
+                    throw new ConflictoNegocioException("Solo se cotizan citas pendientes con un servicio fuera del catálogo.");
+
+                if (await db.Cotizaciones.AnyAsync(c => c.CitaId == citaId && c.Estado == EstadoCotizacion.Pendiente, cancellationToken))
+                    throw new ConflictoNegocioException("Esta cita ya tiene una cotización esperando respuesta del cliente.");
+
+                db.Cotizaciones.Add(cotizacion);
+                await db.SaveChangesAsync(cancellationToken);
+                return true;
+            }, cancellationToken);
+
+            if (!creada)
+                return null;
+
+            await whatsApp.CotizacionCitaEnviadaAsync(citaId, cotizacion.Total);
+            return cotizacion.IdCotizacion;
+        }
+        //[FIN][27/10/2026][Rodriale][Cotización previa a la visita]
+
+        private static Cotizacion Armar(CrearCotizacionRequest request, int usuarioId)
+        {
             var cotizacion = new Cotizacion
             {
-                OrdenTrabajoId = ordenId,
                 Nota = string.IsNullOrWhiteSpace(request.Nota) ? null : request.Nota.Trim(),
                 FechaCreacion = DateTimeOffset.UtcNow,
                 UsuarioCreaId = usuarioId
@@ -89,45 +156,87 @@ namespace CustomCore.API.Servicios
             }
 
             cotizacion.Total = cotizacion.Detalles.Sum(d => d.Subtotal);
-
-            await db.EjecutarUnidadAuditadaAsync(async () =>
-            {
-                db.Cotizaciones.Add(cotizacion);
-                await db.SaveChangesAsync(cancellationToken);
-                return cotizacion.IdCotizacion;
-            }, cancellationToken);
-
-            await whatsApp.CotizacionEnviadaAsync(ordenId, cotizacion.Total);
-            return cotizacion.IdCotizacion;
+            return cotizacion;
         }
-        //[FIN][26/10/2026][Rodriale][Alta de la cotización]
 
         //[INICIO][26/10/2026][Rodriale][Respuesta del cliente: aceptar agrega las líneas a la orden en la misma transacción]
-        public Task<bool> ResponderAsync(
+        //[INICIO][27/10/2026][Rodriale][Responde el cliente (clienteId) o recepción en su nombre (null, dentro de su sede); aceptar la de una cita la confirma]
+        public async Task<bool> ResponderAsync(
             int idCotizacion,
-            int clienteId,
+            int? clienteId,
             bool aceptar,
             CancellationToken cancellationToken)
         {
-            return db.EjecutarUnidadAuditadaAsync(
-                () => ResponderInternoAsync(idCotizacion, clienteId, aceptar, cancellationToken),
-                cancellationToken);
+            var alcance = clienteId is null ? await sucursal.AlcanceAsync(cancellationToken) : null;
+            int? citaConfirmada = null;
+
+            var respondida = await db.EjecutarUnidadAuditadaAsync<bool>(async () =>
+            {
+                citaConfirmada = null;
+                var duenos = await db.Cotizaciones
+                    .Where(c => c.IdCotizacion == idCotizacion)
+                    .Where(c => clienteId == null
+                        ? alcance == null || (c.CitaId != null ? c.Cita!.SucursalId : c.OrdenTrabajo!.SucursalId) == alcance
+                        : (c.CitaId != null ? c.Cita!.Vehiculo.ClienteId : c.OrdenTrabajo!.Vehiculo.ClienteId) == clienteId)
+                    .Select(c => new { c.OrdenTrabajoId, c.CitaId })
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (duenos is null)
+                    return false;
+
+                if (duenos.CitaId is { } idCita)
+                {
+                    if (await ResponderDeCitaAsync(idCotizacion, idCita, aceptar, cancellationToken))
+                        citaConfirmada = idCita;
+                    return true;
+                }
+
+                return await ResponderDeOrdenAsync(idCotizacion, duenos.OrdenTrabajoId!.Value, aceptar, cancellationToken);
+            }, cancellationToken);
+
+            if (citaConfirmada is { } confirmada)
+                await whatsApp.CitaConfirmadaAsync(confirmada);
+
+            return respondida;
         }
 
-        private async Task<bool> ResponderInternoAsync(
+        private async Task<bool> ResponderDeCitaAsync(
             int idCotizacion,
-            int clienteId,
+            int idCita,
             bool aceptar,
             CancellationToken cancellationToken)
         {
-            var ordenId = await db.Cotizaciones
-                .Where(c => c.IdCotizacion == idCotizacion && c.OrdenTrabajo.Vehiculo.ClienteId == clienteId)
-                .Select(c => (int?)c.OrdenTrabajoId)
-                .FirstOrDefaultAsync(cancellationToken);
+            var cita = await db.BloquearFilaAsync<Cita>(idCita, cancellationToken)
+                ?? throw new ConflictoNegocioException("La cita ya no existe.");
 
-            if (ordenId is not { } idOrden)
-                return false;
+            var cotizacion = await db.Cotizaciones.SingleAsync(c => c.IdCotizacion == idCotizacion, cancellationToken);
+            if (cotizacion.Estado != EstadoCotizacion.Pendiente)
+                throw new ConflictoNegocioException("Esta cotización ya fue respondida.");
 
+            if (cita.Estado != EstadoCita.Pendiente)
+                throw new ConflictoNegocioException("La cita ya no está esperando la cotización.");
+
+            cotizacion.Estado = aceptar ? EstadoCotizacion.Aceptada : EstadoCotizacion.Rechazada;
+            cotizacion.FechaRespuesta = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(cancellationToken);
+
+            if (aceptar)
+            {
+                await db.Citas
+                    .Where(c => c.IdCita == idCita)
+                    .ActualizarAuditadoAsync(db, idCita, s => s.SetProperty(c => c.Estado, EstadoCita.Confirmada), cancellationToken);
+            }
+
+            return aceptar;
+        }
+        //[FIN][27/10/2026][Rodriale][Responde el cliente o recepción en su nombre]
+
+        private async Task<bool> ResponderDeOrdenAsync(
+            int idCotizacion,
+            int idOrden,
+            bool aceptar,
+            CancellationToken cancellationToken)
+        {
             // Serializa con los cambios de líneas de la misma orden.
             await db.BloquearFilaAsync<OrdenTrabajoEncabezado>(idOrden, cancellationToken);
 

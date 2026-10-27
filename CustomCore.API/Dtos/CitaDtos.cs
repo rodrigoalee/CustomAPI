@@ -55,8 +55,11 @@ namespace CustomCore.API.Dtos
         EstadoCita Estado,
         //[INICIO][25/10/2026][Rodriale][Servicio pedido y orden abierta, si la hay]
         string? Servicio,
-        int? IdOrden);
+        int? IdOrden,
         //[FIN][25/10/2026][Rodriale][Servicio pedido y orden abierta]
+        //[INICIO][27/10/2026][Rodriale][Indica que la cita pasa por cotización antes de confirmarse]
+        bool ServicioPersonalizado);
+        //[FIN][27/10/2026][Rodriale][Indica que la cita pasa por cotización]
 
     public record CrearCitaRequest(
         [Range(1, int.MaxValue)] int VehiculoId,
@@ -67,8 +70,11 @@ namespace CustomCore.API.Dtos
         [Range(1, int.MaxValue)] int? SucursalId = null,
         //[FIN][12/10/2026][Rodriale][Solo lo usa quien ve todas las sedes]
         //[INICIO][26/10/2026][Rodriale][Servicio pedido en el mostrador, igual que en el portal]
-        [Range(1, int.MaxValue)] int? ServicioId = null);
+        [Range(1, int.MaxValue)] int? ServicioId = null,
         //[FIN][26/10/2026][Rodriale][Servicio pedido en el mostrador]
+        //[INICIO][27/10/2026][Rodriale][Servicio fuera del catálogo: el motivo es la descripción y la cita espera cotización]
+        bool ServicioPersonalizado = false);
+        //[FIN][27/10/2026][Rodriale][Servicio fuera del catálogo]
 
     public record ReprogramarCitaRequest(
         DateTimeOffset FechaHora,

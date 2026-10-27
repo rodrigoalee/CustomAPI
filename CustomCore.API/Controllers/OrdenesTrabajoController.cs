@@ -104,7 +104,9 @@ namespace CustomCore.API.Controllers
 
         //[INICIO][31/8/2026][Rodriale][Actualizar diagnóstico y mecánico asignado]
         [HttpPut("{id:int}")]
-        [Authorize(Policy = PermisosSistema.OrdenesEditar)]
+        //[INICIO][27/10/2026][Rodriale][El diagnóstico va por su PATCH; este endpoint es el de asignar mecánico]
+        [Authorize(Policy = PermisosSistema.OrdenesAsignar)]
+        //[FIN][27/10/2026][Rodriale][El diagnóstico va por su PATCH]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
