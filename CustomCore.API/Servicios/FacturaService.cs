@@ -66,7 +66,9 @@ namespace CustomCore.API.Servicios
                     f.NombreFacturacion,
                     f.NitFacturacion,
                     f.TotalPagado,
-                    f.EstadoPago))
+                    f.EstadoPago,
+                    f.OrdenTrabajo.Vehiculo.Placa,
+                    f.StripePaymentId != null))
                 .ToListAsync(cancellationToken);
 
             return new ResultadoPaginado<FacturaListaDto>(items, consulta.Pagina, consulta.Tamanio, total);

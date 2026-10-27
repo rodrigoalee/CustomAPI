@@ -4,11 +4,16 @@ using CustomCore.API.Dtos;
 using CustomCore.API.Entidades;
 using System.Text.RegularExpressions;
 using CustomCore.API.Excepciones;
+using CustomCore.API.Seguridad;
 using Microsoft.EntityFrameworkCore;
 
 namespace CustomCore.API.Servicios;
 
-public sealed class PortalService(AppDbContext db, NotificacionWhatsAppService whatsApp, CotizacionService cotizaciones)
+public sealed class PortalService(
+    AppDbContext db,
+    NotificacionWhatsAppService whatsApp,
+    CotizacionService cotizaciones,
+    EnlacePago enlaces)
 {
     private const int MaxDiasDisponibilidad = 62;
 
@@ -32,6 +37,44 @@ public sealed class PortalService(AppDbContext db, NotificacionWhatsAppService w
         return await cotizaciones.ResponderAsync(idCotizacion, clienteId, aceptar, cancellationToken);
     }
     //[FIN][26/10/2026][Rodriale][Cotizaciones de la cita del cliente]
+
+    //[INICIO][26/10/2026][Rodriale][Facturas del cliente; el enlace de pago solo sale para una suya y pendiente]
+    public async Task<IReadOnlyList<FacturaPortalDto>> ObtenerFacturasAsync(int idUsuario, CancellationToken cancellationToken)
+    {
+        var clienteId = await ObtenerClienteIdAsync(idUsuario, cancellationToken);
+
+        return await db.FacturasEncabezado
+            .AsNoTracking()
+            .Where(f => f.ClienteId == clienteId)
+            .OrderByDescending(f => f.FechaEmision)
+            .Select(f => new FacturaPortalDto(
+                f.IdFacturaEncabezado,
+                f.FechaEmision,
+                f.OrdenTrabajo.Vehiculo.Placa,
+                f.TotalPagado,
+                f.EstadoPago == EstadoPago.Pagado))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<EnlacePagoDto?> CrearEnlacePagoAsync(int idUsuario, int idFactura, CancellationToken cancellationToken)
+    {
+        var clienteId = await ObtenerClienteIdAsync(idUsuario, cancellationToken);
+
+        var estado = await db.FacturasEncabezado
+            .AsNoTracking()
+            .Where(f => f.IdFacturaEncabezado == idFactura && f.ClienteId == clienteId)
+            .Select(f => (EstadoPago?)f.EstadoPago)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (estado is null)
+            return null;
+
+        if (estado == EstadoPago.Pagado)
+            throw new ConflictoNegocioException("Esta factura ya está pagada.");
+
+        return new EnlacePagoDto(enlaces.Crear(idFactura));
+    }
+    //[FIN][26/10/2026][Rodriale][Facturas del cliente]
 
     public async Task<IReadOnlyList<CitaPortalDto>> ObtenerCitasAsync(
         int idUsuario,
