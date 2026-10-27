@@ -159,6 +159,33 @@ namespace CustomCore.API.Controllers
         }
         //[FIN][26/10/2026][Rodriale][Cotizaciones que el taller envió]
 
+        //[INICIO][26/10/2026][Rodriale][Facturas del cliente y enlace para pagarlas en la pasarela]
+        [HttpGet("facturas")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<ActionResult<IReadOnlyList<FacturaPortalDto>>> ObtenerFacturas(CancellationToken cancellationToken)
+        {
+            if (!TryObtenerIdUsuario(out var idUsuario))
+                return Unauthorized();
+
+            return Ok(await servicio.ObtenerFacturasAsync(idUsuario, cancellationToken));
+        }
+
+        [HttpPost("facturas/{id:int}/enlace-pago")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<ActionResult<EnlacePagoDto>> CrearEnlacePago(int id, CancellationToken cancellationToken)
+        {
+            if (!TryObtenerIdUsuario(out var idUsuario))
+                return Unauthorized();
+
+            var enlace = await servicio.CrearEnlacePagoAsync(idUsuario, id, cancellationToken);
+            return enlace is null ? NotFound() : Ok(enlace);
+        }
+        //[FIN][26/10/2026][Rodriale][Facturas del cliente y enlace para pagarlas]
+
         private bool TryObtenerIdUsuario(out int idUsuario) =>
             int.TryParse(User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value, out idUsuario)
             && idUsuario > 0;

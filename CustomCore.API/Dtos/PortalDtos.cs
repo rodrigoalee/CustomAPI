@@ -84,5 +84,16 @@ namespace CustomCore.API.Dtos
         DateTimeOffset? FechaFinalizacion,
         bool Pagado);
     //[FIN][24/10/2026][Rodriale][Seguimiento de una cita]
+
+    //[INICIO][26/10/2026][Rodriale][Facturas del cliente en su portal]
+    public record FacturaPortalDto(
+        int IdFactura,
+        DateTimeOffset FechaEmision,
+        string Placa,
+        decimal Total,
+        bool Pagada);
+
+    public record EnlacePagoDto(string Token);
+    //[FIN][26/10/2026][Rodriale][Facturas del cliente en su portal]
 }
 //[FIN][23/10/2026][Rodriale][DTOs del portal del cliente]

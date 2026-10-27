@@ -35,7 +35,11 @@ namespace CustomCore.API.Dtos
         string NombreFacturacion,
         string? NitFacturacion,
         decimal TotalPagado,
-        EstadoPago EstadoPago);
+        EstadoPago EstadoPago,
+        //[INICIO][26/10/2026][Rodriale][Placa y forma de pago para la tabla del módulo de facturación]
+        string Placa,
+        bool PagoConTarjeta);
+        //[FIN][26/10/2026][Rodriale][Placa y forma de pago]
     //[FIN][31/8/2026][Rodriale][Fila del listado de facturas]
 
     //[INICIO][31/8/2026][Rodriale][La factura completa, tal como se imprime o se manda por correo]
