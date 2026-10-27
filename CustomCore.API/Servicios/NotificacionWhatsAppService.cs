@@ -42,6 +42,13 @@ public sealed partial class NotificacionWhatsAppService(
             $"Hola {datos.NombreCliente}, tu cita en Los Santos Customs para el {Fecha(datos)}" +
             $" en la sede {datos.Sede} fue confirmada. Te esperamos con tu vehículo {datos.Placa}.");
 
+    //[INICIO][27/10/2026][Rodriale][Aviso cuando el taller cancela la cita]
+    public Task CitaCanceladaAsync(int idCita) =>
+        EnviarAsync($"cita {idCita}", DeCita(idCita), datos =>
+            $"Hola {datos.NombreCliente}, tu cita en Los Santos Customs para el {Fecha(datos)}" +
+            $" en la sede {datos.Sede} fue cancelada. Si necesitas otra visita, agenda una nueva cita o contáctanos.");
+    //[FIN][27/10/2026][Rodriale][Aviso cuando el taller cancela la cita]
+
     //[INICIO][26/10/2026][Rodriale][Avisos del avance de la orden: los mismos pasos que ve el cliente en su seguimiento]
     public Task VehiculoRecibidoAsync(int idOrden) =>
         EnviarAsync($"orden {idOrden}", DeOrden(idOrden), datos =>

@@ -63,6 +63,23 @@ namespace CustomCore.API.Controllers
                 : Created("/api/portal/citas", new { idCita });
         }
 
+        //[INICIO][27/10/2026][Rodriale][Cancelación de una cita propia desde el portal]
+        [HttpPost("citas/{id:int}/cancelar")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<ActionResult> CancelarCita(int id, CancellationToken cancellationToken)
+        {
+            if (!TryObtenerIdUsuario(out var idUsuario))
+                return Unauthorized();
+
+            var cancelada = await servicio.CancelarCitaAsync(idUsuario, id, cancellationToken);
+            return cancelada ? NoContent() : NotFound();
+        }
+        //[FIN][27/10/2026][Rodriale][Cancelación de una cita propia desde el portal]
+
         [HttpGet("perfil")]
         [ProducesResponseType(typeof(PerfilPortalDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]

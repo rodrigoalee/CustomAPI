@@ -337,6 +337,39 @@ public sealed class PortalService(
         //[FIN][25/10/2026][Rodriale][El aviso sale después de la transacción]
     }
 
+    //[INICIO][27/10/2026][Rodriale][El cliente cancela su cita mientras no haya pasado ni tenga orden; una ajena responde 404]
+    public async Task<bool> CancelarCitaAsync(int idUsuario, int idCita, CancellationToken cancellationToken)
+    {
+        var clienteId = await ObtenerClienteIdAsync(idUsuario, cancellationToken);
+
+        var cita = await db.Citas
+            .AsNoTracking()
+            .Where(c => c.IdCita == idCita && c.Vehiculo.ClienteId == clienteId)
+            .Select(c => new
+            {
+                c.Estado,
+                c.FechaHora,
+                TieneOrden = db.OrdenesTrabajoEncabezado.Any(o => o.CitaId == c.IdCita)
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (cita is null)
+            return false;
+
+        if (cita.Estado == EstadoCita.Cancelada)
+            throw new ConflictoNegocioException("Esta cita ya estaba cancelada.");
+
+        if (cita.TieneOrden || cita.FechaHora <= DateTimeOffset.UtcNow)
+            throw new ConflictoNegocioException("Tu vehículo ya está en atención; para cancelar, contáctanos.");
+
+        await db.Citas
+            .Where(c => c.IdCita == idCita)
+            .ActualizarAuditadoAsync(db, idCita, s => s.SetProperty(c => c.Estado, EstadoCita.Cancelada), cancellationToken);
+
+        return true;
+    }
+    //[FIN][27/10/2026][Rodriale][El cliente cancela su cita mientras no haya pasado ni tenga orden]
+
     //[INICIO][23/10/2026][Rodriale][Se trae un día de margen a cada lado: una cita larga que empezó antes del rango también ocupa bloques dentro de él]
     private async Task<List<(DateTimeOffset Inicio, int Minutos)>> CitasActivasDeSedeAsync(
         int sucursalId,

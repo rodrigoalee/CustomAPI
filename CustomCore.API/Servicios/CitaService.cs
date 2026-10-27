@@ -203,6 +203,23 @@ namespace CustomCore.API.Servicios
             var alcance = await sucursal.AlcanceAsync(cancellationToken);
             //[FIN][12/10/2026][Rodriale][Con la sede en el WHERE]
 
+            //[INICIO][27/10/2026][Rodriale][Una cita cancelada o con orden abierta ya no cambia de estado]
+            var actual = await db.Citas
+                .AsNoTracking()
+                .Where(c => c.IdCita == id && (alcance == null || c.SucursalId == alcance))
+                .Select(c => new { c.Estado, TieneOrden = db.OrdenesTrabajoEncabezado.Any(o => o.CitaId == c.IdCita) })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (actual is null)
+                return false;
+
+            if (actual.Estado == EstadoCita.Cancelada)
+                throw new ConflictoNegocioException("La cita ya está cancelada; agenda una nueva.");
+
+            if (actual.TieneOrden)
+                throw new ConflictoNegocioException("La cita ya tiene una orden de trabajo y no se puede cambiar su estado.");
+            //[FIN][27/10/2026][Rodriale][Una cita cancelada o con orden abierta ya no cambia de estado]
+
             var filasAfectadas = await db.Citas
                 .Where(c => c.IdCita == id && (alcance == null || c.SucursalId == alcance))
                 //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
@@ -213,6 +230,11 @@ namespace CustomCore.API.Servicios
             if (filasAfectadas > 0 && request.Estado == EstadoCita.Confirmada)
                 await whatsApp.CitaConfirmadaAsync(id);
             //[FIN][25/10/2026][Rodriale][Al confirmar, el cliente recibe el aviso por WhatsApp]
+
+            //[INICIO][27/10/2026][Rodriale][Si la cancela el taller, el cliente se entera por WhatsApp]
+            if (filasAfectadas > 0 && request.Estado == EstadoCita.Cancelada)
+                await whatsApp.CitaCanceladaAsync(id);
+            //[FIN][27/10/2026][Rodriale][Si la cancela el taller, el cliente se entera por WhatsApp]
 
             return filasAfectadas > 0;
         }
