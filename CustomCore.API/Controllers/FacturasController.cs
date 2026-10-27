@@ -14,7 +14,7 @@ namespace CustomCore.API.Controllers
     //[INICIO][17/9/2026][jgarciad8][Autenticación obligatoria para facturación]
     [Authorize]
     //[FIN][17/9/2026][jgarciad8][Autenticación obligatoria para facturación]
-    public sealed class FacturasController(FacturaService servicio) : ControllerBase
+    public sealed class FacturasController(FacturaService servicio, PasarelaPruebaService pasarela) : ControllerBase
     {
         //[INICIO][31/8/2026][Rodriale][Historial de facturas con filtros y paginación]
         [HttpGet]
@@ -65,9 +65,11 @@ namespace CustomCore.API.Controllers
 
 
             var id = await servicio.CrearAsync(request, cancellationToken);
+            //[INICIO][26/10/2026][Rodriale][El id en el cuerpo para enviar el enlace de pago enseguida]
             return id is null
                 ? NotFound()
-                : CreatedAtAction(nameof(ObtenerPorId), new { id }, null);
+                : CreatedAtAction(nameof(ObtenerPorId), new { id }, new { idFactura = id });
+            //[FIN][26/10/2026][Rodriale][El id en el cuerpo]
         }
         //[FIN][31/8/2026][Rodriale][Emitir factura]
 
@@ -86,6 +88,16 @@ namespace CustomCore.API.Controllers
             return registrado ? NoContent() : NotFound();
         }
         //[FIN][31/8/2026][Rodriale][Marcar la factura como pagada]
+
+        //[INICIO][26/10/2026][Rodriale][Enviar por WhatsApp el enlace a la pasarela de pago de la factura]
+        [HttpPost("{id:int}/enlace-pago")]
+        [Authorize(Policy = PermisosSistema.FacturasCrear)]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<ActionResult> EnviarEnlacePago(int id, CancellationToken cancellationToken) =>
+            await pasarela.EnviarEnlaceAsync(id, cancellationToken) ? NoContent() : NotFound();
+        //[FIN][26/10/2026][Rodriale][Enviar el enlace de pago]
     }
 }
 //[FIN][31/8/2026][Rodriale][Controlador de facturación]

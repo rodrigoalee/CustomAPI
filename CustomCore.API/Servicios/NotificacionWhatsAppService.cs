@@ -58,6 +58,20 @@ public sealed partial class NotificacionWhatsAppService(
             $"Hola {datos.NombreCliente}, terminamos el trabajo en tu vehículo {datos.Placa}." +
             $" Ya puedes pasar a recogerlo a la sede {datos.Sede}." + Enlace(datos));
 
+    //[INICIO][26/10/2026][Rodriale][Cotización de trabajo adicional: el cliente la revisa y responde en su seguimiento]
+    public Task CotizacionEnviadaAsync(int idOrden, decimal total) =>
+        EnviarAsync($"orden {idOrden}", DeOrden(idOrden), datos =>
+            $"Hola {datos.NombreCliente}, preparamos una cotización para tu vehículo {datos.Placa}" +
+            $" por {total.ToString("C", Espanol)}. Revísala y dinos si la aceptas." + Enlace(datos));
+    //[FIN][26/10/2026][Rodriale][Cotización de trabajo adicional]
+
+    //[INICIO][26/10/2026][Rodriale][Al recoger el vehículo: total y enlace a la pasarela de pago]
+    public Task FacturaListaAsync(int idOrden, decimal total, string token) =>
+        EnviarAsync($"orden {idOrden}", DeOrden(idOrden), datos =>
+            $"Hola {datos.NombreCliente}, tu vehículo {datos.Placa} está listo. El total es {total.ToString("C", Espanol)}." +
+            $" Puedes pagar aquí: {opciones.Value.UrlPago.Replace("{token}", token)}");
+    //[FIN][26/10/2026][Rodriale][Al recoger el vehículo]
+
     private string Enlace(DatosAviso datos) =>
         datos.IdCita is { } idCita && !string.IsNullOrWhiteSpace(opciones.Value.UrlSeguimiento)
             ? $" Sigue el avance aquí: {opciones.Value.UrlSeguimiento.Replace("{idCita}", idCita.ToString())}"

@@ -43,7 +43,9 @@ namespace CustomCore.API.Controllers
             CancellationToken cancellationToken)
         {
             var id = await servicio.CrearAsync(request, cancellationToken);
-            return CreatedAtAction(nameof(ObtenerPorId), new { id }, null);
+            //[INICIO][26/10/2026][Rodriale][El id en el cuerpo para ir directo al detalle de la cita recién creada]
+            return CreatedAtAction(nameof(ObtenerPorId), new { id }, new { idCita = id });
+            //[FIN][26/10/2026][Rodriale][El id en el cuerpo]
         }
 
         [HttpPut("{id:int}")]

@@ -13,6 +13,10 @@ namespace CustomCore.API.Configuracion
 
         //[INICIO][26/10/2026][Rodriale][Enlace al seguimiento del cliente en el front; {idCita} se reemplaza al armar el aviso]
         public string UrlSeguimiento { get; set; } = string.Empty;
+
+        //[INICIO][26/10/2026][Rodriale][Enlace a la pasarela de pago; {token} se reemplaza por el enlace firmado de la factura]
+        public string UrlPago { get; set; } = string.Empty;
+        //[FIN][26/10/2026][Rodriale][Enlace a la pasarela de pago]
         //[FIN][26/10/2026][Rodriale][Enlace al seguimiento del cliente en el front]
 
         public bool Configurado =>

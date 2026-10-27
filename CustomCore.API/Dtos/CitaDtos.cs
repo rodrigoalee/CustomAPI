@@ -64,8 +64,11 @@ namespace CustomCore.API.Dtos
         [Range(15, 480)] int DuracionMinutos,
         [MaxLength(500)] string? Motivo,
         //[INICIO][12/10/2026][Rodriale][Solo lo usa quien ve todas las sedes; al empleado se le asigna la suya]
-        [Range(1, int.MaxValue)] int? SucursalId = null);
+        [Range(1, int.MaxValue)] int? SucursalId = null,
         //[FIN][12/10/2026][Rodriale][Solo lo usa quien ve todas las sedes]
+        //[INICIO][26/10/2026][Rodriale][Servicio pedido en el mostrador, igual que en el portal]
+        [Range(1, int.MaxValue)] int? ServicioId = null);
+        //[FIN][26/10/2026][Rodriale][Servicio pedido en el mostrador]
 
     public record ReprogramarCitaRequest(
         DateTimeOffset FechaHora,

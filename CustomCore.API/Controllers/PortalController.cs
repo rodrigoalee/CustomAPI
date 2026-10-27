@@ -126,6 +126,66 @@ namespace CustomCore.API.Controllers
             CancellationToken cancellationToken) =>
             Ok(await servicio.ObtenerDisponibilidadAsync(consulta, cancellationToken));
 
+        //[INICIO][26/10/2026][Rodriale][Cotizaciones que el taller envió para una cita del cliente]
+        [HttpGet("citas/{id:int}/cotizaciones")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<ActionResult<IReadOnlyList<CotizacionDto>>> ObtenerCotizaciones(
+            int id,
+            CancellationToken cancellationToken)
+        {
+            if (!TryObtenerIdUsuario(out var idUsuario))
+                return Unauthorized();
+
+            return Ok(await servicio.ObtenerCotizacionesAsync(idUsuario, id, cancellationToken));
+        }
+
+        [HttpPost("cotizaciones/{id:int}/respuesta")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<ActionResult> ResponderCotizacion(
+            int id,
+            ResponderCotizacionRequest request,
+            CancellationToken cancellationToken)
+        {
+            if (!TryObtenerIdUsuario(out var idUsuario))
+                return Unauthorized();
+
+            var respondida = await servicio.ResponderCotizacionAsync(idUsuario, id, request.Aceptar!.Value, cancellationToken);
+            return respondida ? NoContent() : NotFound();
+        }
+        //[FIN][26/10/2026][Rodriale][Cotizaciones que el taller envió]
+
+        //[INICIO][26/10/2026][Rodriale][Facturas del cliente y enlace para pagarlas en la pasarela]
+        [HttpGet("facturas")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<ActionResult<IReadOnlyList<FacturaPortalDto>>> ObtenerFacturas(CancellationToken cancellationToken)
+        {
+            if (!TryObtenerIdUsuario(out var idUsuario))
+                return Unauthorized();
+
+            return Ok(await servicio.ObtenerFacturasAsync(idUsuario, cancellationToken));
+        }
+
+        [HttpPost("facturas/{id:int}/enlace-pago")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<ActionResult<EnlacePagoDto>> CrearEnlacePago(int id, CancellationToken cancellationToken)
+        {
+            if (!TryObtenerIdUsuario(out var idUsuario))
+                return Unauthorized();
+
+            var enlace = await servicio.CrearEnlacePagoAsync(idUsuario, id, cancellationToken);
+            return enlace is null ? NotFound() : Ok(enlace);
+        }
+        //[FIN][26/10/2026][Rodriale][Facturas del cliente y enlace para pagarlas]
+
         private bool TryObtenerIdUsuario(out int idUsuario) =>
             int.TryParse(User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value, out idUsuario)
             && idUsuario > 0;

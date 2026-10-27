@@ -70,9 +70,17 @@ public sealed class UsuariosController(UsuarioService servicio)
         CrearUsuarioRequest request,
         CancellationToken cancellationToken)
     {
+        //[INICIO][26/10/2026][Rodriale][Quien crea no puede repartir permisos que no tiene]
+        if (UsuarioActualId() is not { } usuarioActualId)
+        {
+            return Unauthorized();
+        }
+
         var usuario = await servicio.CrearAsync(
             request,
+            usuarioActualId,
             cancellationToken);
+        //[FIN][26/10/2026][Rodriale][Quien crea no puede repartir permisos que no tiene]
 
         return CreatedAtAction(
             nameof(ObtenerPorId),
@@ -95,10 +103,18 @@ public sealed class UsuariosController(UsuarioService servicio)
         ActualizarUsuarioRequest request,
         CancellationToken cancellationToken)
     {
+        //[INICIO][26/10/2026][Rodriale][El cambio de rol valida a quien lo hace]
+        if (UsuarioActualId() is not { } usuarioActualId)
+        {
+            return Unauthorized();
+        }
+
         var actualizado = await servicio.ActualizarAsync(
             id,
             request,
+            usuarioActualId,
             cancellationToken);
+        //[FIN][26/10/2026][Rodriale][El cambio de rol valida a quien lo hace]
 
         if (!actualizado)
         {
@@ -154,5 +170,34 @@ public sealed class UsuariosController(UsuarioService servicio)
     }
     //[FIN][16/9/2026][jgarciad8][Endpoint protegido para cambiar el estado de una cuenta]
 
+    //[INICIO][26/10/2026][Rodriale][Restablecer la contraseña de un empleado; sus sesiones abiertas se cierran]
+    [HttpPatch("{id:int:min(1)}/password")]
+    [Authorize(Policy = PermisosSistema.UsuariosEditar)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RestablecerPassword(
+        int id,
+        RestablecerPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        var actualizado = await servicio.RestablecerPasswordAsync(id, request.Password, cancellationToken);
+
+        if (!actualizado)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Usuario no encontrado",
+                detail: "No existe un usuario con el identificador indicado.");
+        }
+
+        return NoContent();
+    }
+    //[FIN][26/10/2026][Rodriale][Restablecer la contraseña de un empleado]
+
+    //[INICIO][26/10/2026][Rodriale][Id de quien llama, tomado del JWT]
+    private int? UsuarioActualId() =>
+        int.TryParse(User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value, out var id) && id > 0 ? id : null;
+    //[FIN][26/10/2026][Rodriale][Id de quien llama]
 }
 //[FIN][16/9/2026][jgarciad8][Controlador del módulo de usuarios]
