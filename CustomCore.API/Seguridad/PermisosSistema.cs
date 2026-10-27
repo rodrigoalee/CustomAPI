@@ -68,6 +68,12 @@ public static class PermisosSistema
     //[INICIO][26/10/2026][Rodriale][Cotizar trabajo fuera del catálogo y enviarlo al cliente]
     public const string OrdenesCotizar = "ordenes.cotizar";
     //[FIN][26/10/2026][Rodriale][Cotizar trabajo fuera del catálogo]
+    //[INICIO][27/10/2026][Rodriale][Asignar o reasignar el mecánico de una orden; separado de recepción]
+    public const string OrdenesAsignar = "ordenes.asignar";
+    //[FIN][27/10/2026][Rodriale][Asignar o reasignar el mecánico de una orden]
+    //[INICIO][27/10/2026][Rodriale][Descargar reportes en Excel o PDF]
+    public const string ReportesVer = "reportes.ver";
+    //[FIN][27/10/2026][Rodriale][Descargar reportes en Excel o PDF]
     //[INICIO][26/10/2026][Rodriale][Ver el tablero de analíticas; lo usa el front, el reporte vive en Power BI]
     public const string AnaliticasVer = "analiticas.ver";
     //[FIN][26/10/2026][Rodriale][Ver el tablero de analíticas]

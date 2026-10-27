@@ -57,11 +57,23 @@ namespace CustomCore.API.Dtos
         bool Disponible,
         bool Lleno);
 
+    //[INICIO][27/10/2026][Rodriale][Servicio del catálogo o, si no le sirve ninguno, lo que necesita descrito por el cliente]
     public record AgendarCitaRequest(
         [Range(1, int.MaxValue)] int VehiculoId,
         [Range(1, int.MaxValue)] int SucursalId,
-        [Range(1, int.MaxValue)] int ServicioId,
-        DateTimeOffset FechaHora);
+        [Range(1, int.MaxValue)] int? ServicioId,
+        DateTimeOffset FechaHora,
+        [MaxLength(500)] string? DescripcionServicio = null) : IValidatableObject
+    {
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            if (ServicioId is null == string.IsNullOrWhiteSpace(DescripcionServicio))
+                yield return new ValidationResult(
+                    "Elige un servicio del catálogo o describe lo que necesitas.",
+                    [nameof(ServicioId), nameof(DescripcionServicio)]);
+        }
+    }
+    //[FIN][27/10/2026][Rodriale][Servicio del catálogo o descrito por el cliente]
 
     public record DiaDisponibilidadDto(
         DateOnly Fecha,

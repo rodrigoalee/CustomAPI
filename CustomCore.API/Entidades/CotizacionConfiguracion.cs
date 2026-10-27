@@ -9,7 +9,10 @@ public sealed class CotizacionConfiguration : IEntityTypeConfiguration<Cotizacio
 {
     public void Configure(EntityTypeBuilder<Cotizacion> builder)
     {
-        builder.ToTable("Cotizaciones");
+        //[INICIO][27/10/2026][Rodriale][Exactamente un dueño: la orden o la cita]
+        builder.ToTable("Cotizaciones", t => t.HasCheckConstraint(
+            "CK_Cotizaciones_UnSoloDueno", @"(""OrdenTrabajoId"" IS NULL) <> (""CitaId"" IS NULL)"));
+        //[FIN][27/10/2026][Rodriale][Exactamente un dueño]
         builder.HasKey(c => c.IdCotizacion);
 
         builder.Property(c => c.Estado)
@@ -21,6 +24,12 @@ public sealed class CotizacionConfiguration : IEntityTypeConfiguration<Cotizacio
         builder.Property(c => c.Total).HasPrecision(18, 2);
 
         builder.HasIndex(c => c.OrdenTrabajoId);
+        builder.HasIndex(c => c.CitaId);
+
+        builder.HasOne(c => c.Cita)
+            .WithMany()
+            .HasForeignKey(c => c.CitaId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(c => c.OrdenTrabajo)
             .WithMany()

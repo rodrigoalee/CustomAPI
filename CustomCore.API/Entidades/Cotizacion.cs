@@ -11,7 +11,10 @@ public enum EstadoCotizacion
 public class Cotizacion
 {
     public int IdCotizacion { get; set; }
-    public int OrdenTrabajoId { get; set; }
+    //[INICIO][27/10/2026][Rodriale][La cotización cuelga de la orden (trabajo adicional) o de la cita (servicio fuera del catálogo, antes de la visita)]
+    public int? OrdenTrabajoId { get; set; }
+    public int? CitaId { get; set; }
+    //[FIN][27/10/2026][Rodriale][La cotización cuelga de la orden o de la cita]
     public EstadoCotizacion Estado { get; set; } = EstadoCotizacion.Pendiente;
     public string? Nota { get; set; }
     public decimal Total { get; set; }
@@ -19,7 +22,8 @@ public class Cotizacion
     public DateTimeOffset? FechaRespuesta { get; set; }
     public int UsuarioCreaId { get; set; }
 
-    public OrdenTrabajoEncabezado OrdenTrabajo { get; set; } = null!;
+    public OrdenTrabajoEncabezado? OrdenTrabajo { get; set; }
+    public Cita? Cita { get; set; }
     public ICollection<CotizacionDetalle> Detalles { get; } = new List<CotizacionDetalle>();
 }
 

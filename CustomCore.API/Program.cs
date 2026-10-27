@@ -51,6 +51,10 @@ builder.Services.AddScoped<RegistroService>();
 builder.Services.AddScoped<PortalService>();
 builder.Services.AddScoped<CotizacionService>();
 builder.Services.AddScoped<PasarelaPruebaService>();
+//[INICIO][27/10/2026][Rodriale][Reportería; QuestPDF exige declarar la licencia (Community: proyecto académico)]
+builder.Services.AddScoped<ReporteService>();
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+//[FIN][27/10/2026][Rodriale][Reportería]
 //[INICIO][25/10/2026][Rodriale][Avisos por WhatsApp; si faltan las credenciales la app arranca igual y solo deja de avisar]
 builder.Services.AddHttpClient<NotificacionWhatsAppService>();
 builder.Services.Configure<CustomCore.API.Configuracion.OpcionesWhatsApp>(

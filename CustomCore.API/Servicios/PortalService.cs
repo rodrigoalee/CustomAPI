@@ -2,7 +2,6 @@
 using CustomCore.API.Data;
 using CustomCore.API.Dtos;
 using CustomCore.API.Entidades;
-using System.Text.RegularExpressions;
 using CustomCore.API.Excepciones;
 using CustomCore.API.Seguridad;
 using Microsoft.EntityFrameworkCore;
@@ -182,18 +181,12 @@ public sealed class PortalService(
         CancellationToken cancellationToken)
     {
         var clienteId = await ObtenerClienteIdAsync(idUsuario, cancellationToken);
-        var placa = NormalizarPlaca(request.Placa);
-        var placaSinSeparadores = placa.Replace("-", "");
+        var placa = PlacaVehiculo.Normalizar(request.Placa);
 
         //[INICIO][23/10/2026][Rodriale][Placa ajena: no se revela de quién es ni se le pasa al que la escribió; la vinculación la hace el taller]
-        //[INICIO][24/10/2026][Rodriale][Se compara sin guiones ni espacios: P678KDD y P-678KDD son la misma placa]
-        if (await db.Vehiculos.AsNoTracking()
-                .AnyAsync(v => v.Placa.ToUpper().Replace("-", "").Replace(" ", "") == placaSinSeparadores, cancellationToken))
-        //[FIN][24/10/2026][Rodriale][Se compara sin guiones ni espacios]
-        {
-            throw new ConflictoNegocioException(
-                "Esa placa ya está registrada en el taller. Comunícate con nosotros.");
-        }
+        await PlacaVehiculo.ValidarQueNoExisteAsync(
+            db, placa, vehiculoExcluido: null,
+            "Esa placa ya está registrada en el taller. Comunícate con nosotros.", cancellationToken);
         //[FIN][23/10/2026][Rodriale][Placa ajena]
 
         var vehiculo = new Vehiculo
@@ -278,8 +271,8 @@ public sealed class PortalService(
                 .AnyAsync(v => v.IdVehiculo == request.VehiculoId && v.ClienteId == clienteId, cancellationToken))
             return null;
 
-        if (!await db.Servicios.AsNoTracking()
-                .AnyAsync(s => s.IdServicio == request.ServicioId && s.Activo, cancellationToken))
+        if (request.ServicioId is { } servicioId && !await db.Servicios.AsNoTracking()
+                .AnyAsync(s => s.IdServicio == servicioId && s.Activo, cancellationToken))
             throw new ConflictoNegocioException("El servicio no existe o ya no está disponible.");
 
         if (!HorarioTaller.EsInicioDeBloque(request.FechaHora)
@@ -318,7 +311,10 @@ public sealed class PortalService(
                 ServicioId = request.ServicioId,
                 FechaHora = inicio,
                 DuracionMinutos = HorarioTaller.DuracionMinutos,
-                Motivo = null,
+                //[INICIO][27/10/2026][Rodriale][Sin servicio del catálogo, lo que describe el cliente queda como motivo y se cotiza]
+                Motivo = request.ServicioId is null ? request.DescripcionServicio!.Trim() : null,
+                ServicioPersonalizado = request.ServicioId is null,
+                //[FIN][27/10/2026][Rodriale][Sin servicio del catálogo se cotiza]
                 Estado = EstadoCita.Pendiente
             };
 
@@ -336,6 +332,39 @@ public sealed class PortalService(
         return idCita;
         //[FIN][25/10/2026][Rodriale][El aviso sale después de la transacción]
     }
+
+    //[INICIO][27/10/2026][Rodriale][El cliente cancela su cita mientras no haya pasado ni tenga orden; una ajena responde 404]
+    public async Task<bool> CancelarCitaAsync(int idUsuario, int idCita, CancellationToken cancellationToken)
+    {
+        var clienteId = await ObtenerClienteIdAsync(idUsuario, cancellationToken);
+
+        var cita = await db.Citas
+            .AsNoTracking()
+            .Where(c => c.IdCita == idCita && c.Vehiculo.ClienteId == clienteId)
+            .Select(c => new
+            {
+                c.Estado,
+                c.FechaHora,
+                TieneOrden = db.OrdenesTrabajoEncabezado.Any(o => o.CitaId == c.IdCita)
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (cita is null)
+            return false;
+
+        if (cita.Estado == EstadoCita.Cancelada)
+            throw new ConflictoNegocioException("Esta cita ya estaba cancelada.");
+
+        if (cita.TieneOrden || cita.FechaHora <= DateTimeOffset.UtcNow)
+            throw new ConflictoNegocioException("Tu vehículo ya está en atención; para cancelar, contáctanos.");
+
+        await db.Citas
+            .Where(c => c.IdCita == idCita)
+            .ActualizarAuditadoAsync(db, idCita, s => s.SetProperty(c => c.Estado, EstadoCita.Cancelada), cancellationToken);
+
+        return true;
+    }
+    //[FIN][27/10/2026][Rodriale][El cliente cancela su cita mientras no haya pasado ni tenga orden]
 
     //[INICIO][23/10/2026][Rodriale][Se trae un día de margen a cada lado: una cita larga que empezó antes del rango también ocupa bloques dentro de él]
     private async Task<List<(DateTimeOffset Inicio, int Minutos)>> CitasActivasDeSedeAsync(
@@ -359,15 +388,6 @@ public sealed class PortalService(
         return citas.Select(c => (c.FechaHora, c.DuracionMinutos)).ToList();
     }
     //[FIN][23/10/2026][Rodriale][Se trae un día de margen a cada lado]
-
-    //[INICIO][24/10/2026][Rodriale][Placa guatemalteca con guion tras el prefijo (P678KDD → P-678KDD); si no sigue el formato se guarda como la escribió]
-    private static string NormalizarPlaca(string placa)
-    {
-        var limpia = placa.Trim().ToUpperInvariant();
-        var partes = Regex.Match(Regex.Replace(limpia, @"[\s-]", ""), @"^([A-Z]{1,3})(\d{3}[A-Z]{3})$");
-        return partes.Success ? $"{partes.Groups[1].Value}-{partes.Groups[2].Value}" : limpia;
-    }
-    //[FIN][24/10/2026][Rodriale][Placa guatemalteca con guion tras el prefijo]
 
     private static int ContarCruces(List<(DateTimeOffset Inicio, int Minutos)> citas, DateTimeOffset bloque)
     {

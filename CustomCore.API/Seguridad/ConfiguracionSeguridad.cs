@@ -299,7 +299,8 @@ public static class ConfiguracionSeguridad
                 PermisosSistema.OrdenesEditar,
                 PermisosSistema.OrdenesCambiarEstado,
                 PermisosSistema.OrdenesTrabajar,
-                PermisosSistema.OrdenesCotizar
+                PermisosSistema.OrdenesCotizar,
+                PermisosSistema.OrdenesAsignar
             })
             {
                 opciones.AddPolicy(codigo, politica =>
@@ -344,6 +345,14 @@ public static class ConfiguracionSeguridad
                 });
             }
             //[FIN][12/10/2026][Rodriale][Políticas de sucursales e inventario]
+
+            //[INICIO][27/10/2026][Rodriale][Política de reportería]
+            opciones.AddPolicy(PermisosSistema.ReportesVer, politica =>
+            {
+                politica.RequireAuthenticatedUser();
+                politica.AddRequirements(new PermisoRequirement(PermisosSistema.ReportesVer));
+            });
+            //[FIN][27/10/2026][Rodriale][Política de reportería]
 
 
         });

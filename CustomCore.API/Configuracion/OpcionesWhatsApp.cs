@@ -19,9 +19,24 @@ namespace CustomCore.API.Configuracion
         //[FIN][26/10/2026][Rodriale][Enlace a la pasarela de pago]
         //[FIN][26/10/2026][Rodriale][Enlace al seguimiento del cliente en el front]
 
-        public bool Configurado =>
-            !string.IsNullOrWhiteSpace(Token)
-            && !string.IsNullOrWhiteSpace(PhoneNumberId);
+        //[INICIO][27/10/2026][Rodriale][Proveedor alterno: Twilio ("Twilio") si la cuenta de Meta queda bloqueada; por defecto, Meta]
+        public string Proveedor { get; set; } = "Meta";
+
+        public string TwilioAccountSid { get; set; } = string.Empty;
+
+        public string TwilioAuthToken { get; set; } = string.Empty;
+
+        public string TwilioNumero { get; set; } = string.Empty;
+
+        public bool UsaTwilio => Proveedor.Equals("Twilio", StringComparison.OrdinalIgnoreCase);
+
+        public bool Configurado => UsaTwilio
+            ? !string.IsNullOrWhiteSpace(TwilioAccountSid)
+              && !string.IsNullOrWhiteSpace(TwilioAuthToken)
+              && !string.IsNullOrWhiteSpace(TwilioNumero)
+            : !string.IsNullOrWhiteSpace(Token)
+              && !string.IsNullOrWhiteSpace(PhoneNumberId);
+        //[FIN][27/10/2026][Rodriale][Proveedor alterno: Twilio]
     }
 }
 //[FIN][25/10/2026][Rodriale][Credenciales de la Cloud API de WhatsApp (Meta)]

@@ -67,7 +67,7 @@ namespace CustomCore.API.Servicios
                     c.FechaHora,
                     c.DuracionMinutos,
                     c.Estado,
-                    c.Servicio != null ? c.Servicio.Nombre : null,
+                    c.Servicio != null ? c.Servicio.Nombre : c.ServicioPersonalizado ? "Otro servicio" : null,
                     db.OrdenesTrabajoEncabezado.Where(o => o.CitaId == c.IdCita).Select(o => (int?)o.IdOrdenEncabezado).FirstOrDefault()))
                 .ToListAsync(cancellationToken);
 
@@ -97,8 +97,9 @@ namespace CustomCore.API.Servicios
                     c.DuracionMinutos,
                     c.Motivo,
                     c.Estado,
-                    c.Servicio != null ? c.Servicio.Nombre : null,
-                    db.OrdenesTrabajoEncabezado.Where(o => o.CitaId == c.IdCita).Select(o => (int?)o.IdOrdenEncabezado).FirstOrDefault()))
+                    c.Servicio != null ? c.Servicio.Nombre : c.ServicioPersonalizado ? "Otro servicio" : null,
+                    db.OrdenesTrabajoEncabezado.Where(o => o.CitaId == c.IdCita).Select(o => (int?)o.IdOrdenEncabezado).FirstOrDefault(),
+                    c.ServicioPersonalizado))
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
@@ -112,6 +113,11 @@ namespace CustomCore.API.Servicios
                 !await db.Servicios.AsNoTracking().AnyAsync(s => s.IdServicio == servicioId && s.Activo, cancellationToken))
                 throw new ConflictoNegocioException("El servicio no existe o ya no está disponible.");
             //[FIN][26/10/2026][Rodriale][Unos minutos de gracia y servicio válido]
+
+            //[INICIO][27/10/2026][Rodriale][Servicio fuera del catálogo: necesita descripción y no lleva servicio]
+            if (request.ServicioPersonalizado && (request.ServicioId is not null || string.IsNullOrWhiteSpace(request.Motivo)))
+                throw new ConflictoNegocioException("Describe el servicio que necesita el cliente para poder cotizarlo.");
+            //[FIN][27/10/2026][Rodriale][Servicio fuera del catálogo: necesita descripción]
 
             //[INICIO][12/10/2026][Rodriale][La cita queda en la sede de quien la agenda]
             var sucursalId = await sucursal.ResolverAsync(request.SucursalId, cancellationToken);
@@ -133,13 +139,17 @@ namespace CustomCore.API.Servicios
                 Motivo = request.Motivo,
                 //[INICIO][26/10/2026][Rodriale][La agenda el propio taller: nace confirmada y el cliente recibe el aviso]
                 ServicioId = request.ServicioId,
-                Estado = EstadoCita.Confirmada
+                //[INICIO][27/10/2026][Rodriale][Fuera del catálogo nace pendiente: primero se cotiza y el cliente acepta]
+                ServicioPersonalizado = request.ServicioPersonalizado,
+                Estado = request.ServicioPersonalizado ? EstadoCita.Pendiente : EstadoCita.Confirmada
             };
 
             db.Citas.Add(cita);
             await db.SaveChangesAsync(cancellationToken);
 
-            await whatsApp.CitaConfirmadaAsync(cita.IdCita);
+            if (!request.ServicioPersonalizado)
+                await whatsApp.CitaConfirmadaAsync(cita.IdCita);
+            //[FIN][27/10/2026][Rodriale][Fuera del catálogo nace pendiente]
             //[FIN][26/10/2026][Rodriale][La agenda el propio taller: nace confirmada]
 
             return cita.IdCita;
@@ -203,6 +213,26 @@ namespace CustomCore.API.Servicios
             var alcance = await sucursal.AlcanceAsync(cancellationToken);
             //[FIN][12/10/2026][Rodriale][Con la sede en el WHERE]
 
+            //[INICIO][27/10/2026][Rodriale][Una cita cancelada o con orden abierta ya no cambia de estado]
+            var actual = await db.Citas
+                .AsNoTracking()
+                .Where(c => c.IdCita == id && (alcance == null || c.SucursalId == alcance))
+                .Select(c => new { c.Estado, c.ServicioPersonalizado, TieneOrden = db.OrdenesTrabajoEncabezado.Any(o => o.CitaId == c.IdCita) })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (actual is null)
+                return false;
+
+            if (actual.Estado == EstadoCita.Cancelada)
+                throw new ConflictoNegocioException("La cita ya está cancelada; agenda una nueva.");
+
+            if (actual.TieneOrden)
+                throw new ConflictoNegocioException("La cita ya tiene una orden de trabajo y no se puede cambiar su estado.");
+
+            if (actual.ServicioPersonalizado && request.Estado == EstadoCita.Confirmada)
+                throw new ConflictoNegocioException("Esta cita se confirma cuando el cliente acepta la cotización.");
+            //[FIN][27/10/2026][Rodriale][Una cita cancelada o con orden abierta ya no cambia de estado]
+
             var filasAfectadas = await db.Citas
                 .Where(c => c.IdCita == id && (alcance == null || c.SucursalId == alcance))
                 //[INICIO][5/10/2026][jgarciad8][Operación directa con bloqueo y log atómico]
@@ -213,6 +243,11 @@ namespace CustomCore.API.Servicios
             if (filasAfectadas > 0 && request.Estado == EstadoCita.Confirmada)
                 await whatsApp.CitaConfirmadaAsync(id);
             //[FIN][25/10/2026][Rodriale][Al confirmar, el cliente recibe el aviso por WhatsApp]
+
+            //[INICIO][27/10/2026][Rodriale][Si la cancela el taller, el cliente se entera por WhatsApp]
+            if (filasAfectadas > 0 && request.Estado == EstadoCita.Cancelada)
+                await whatsApp.CitaCanceladaAsync(id);
+            //[FIN][27/10/2026][Rodriale][Si la cancela el taller, el cliente se entera por WhatsApp]
 
             return filasAfectadas > 0;
         }
