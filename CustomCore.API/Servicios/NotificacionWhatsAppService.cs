@@ -42,6 +42,13 @@ public sealed partial class NotificacionWhatsAppService(
             $"Hola {datos.NombreCliente}, tu cita en Los Santos Customs para el {Fecha(datos)}" +
             $" en la sede {datos.Sede} fue confirmada. Te esperamos con tu vehículo {datos.Placa}.");
 
+    //[INICIO][27/10/2026][Rodriale][Cotización previa a la visita para un servicio fuera del catálogo]
+    public Task CotizacionCitaEnviadaAsync(int idCita, decimal total) =>
+        EnviarAsync($"cita {idCita}", DeCita(idCita), datos =>
+            $"Hola {datos.NombreCliente}, preparamos la cotización de tu cita para el {Fecha(datos)}" +
+            $" por {total.ToString("C", Espanol)}. Revísala y dinos si la aceptas para confirmarla." + Enlace(datos));
+    //[FIN][27/10/2026][Rodriale][Cotización previa a la visita]
+
     //[INICIO][27/10/2026][Rodriale][Aviso cuando el taller cancela la cita]
     public Task CitaCanceladaAsync(int idCita) =>
         EnviarAsync($"cita {idCita}", DeCita(idCita), datos =>
@@ -151,6 +158,14 @@ public sealed partial class NotificacionWhatsAppService(
                 return;
             }
 
+            //[INICIO][27/10/2026][Rodriale][Con Twilio el mensaje sale por su API y el resto del flujo queda igual]
+            if (configuracion.UsaTwilio)
+            {
+                await EnviarPorTwilioAsync(configuracion, origen, telefono, mensaje(datos));
+                return;
+            }
+            //[FIN][27/10/2026][Rodriale][Con Twilio el mensaje sale por su API]
+
             //[INICIO][25/10/2026][Rodriale][Meta pide el número sin el "+"]
             var cuerpo = new
             {
@@ -191,5 +206,39 @@ public sealed partial class NotificacionWhatsAppService(
             logger.LogError(ex, "No se pudo enviar el aviso de WhatsApp de la {Origen}.", origen);
         }
     }
+
+    //[INICIO][27/10/2026][Rodriale][Twilio recibe formulario con From/To "whatsapp:+número" y autenticación básica SID:token]
+    private async Task EnviarPorTwilioAsync(OpcionesWhatsApp configuracion, string origen, string telefono, string texto)
+    {
+        var desde = configuracion.TwilioNumero.StartsWith("whatsapp:") ? configuracion.TwilioNumero : $"whatsapp:{configuracion.TwilioNumero}";
+
+        using var solicitud = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"https://api.twilio.com/2010-04-01/Accounts/{configuracion.TwilioAccountSid}/Messages.json")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["From"] = desde,
+                ["To"] = $"whatsapp:{telefono}",
+                ["Body"] = texto
+            })
+        };
+        solicitud.Headers.Authorization = new AuthenticationHeaderValue(
+            "Basic",
+            Convert.ToBase64String(Encoding.UTF8.GetBytes($"{configuracion.TwilioAccountSid}:{configuracion.TwilioAuthToken}")));
+
+        using var respuesta = await http.SendAsync(solicitud);
+        var contenido = await respuesta.Content.ReadAsStringAsync();
+
+        if (!respuesta.IsSuccessStatusCode)
+        {
+            logger.LogError("Twilio rechazó el aviso de WhatsApp de la {Origen} ({Estado}): {Respuesta}",
+                origen, (int)respuesta.StatusCode, contenido);
+            return;
+        }
+
+        logger.LogInformation("Aviso de WhatsApp de la {Origen} enviado por Twilio.", origen);
+    }
+    //[FIN][27/10/2026][Rodriale][Twilio]
 }
 //[FIN][25/10/2026][Rodriale][Avisos de citas por WhatsApp con la Cloud API de Meta]

@@ -1,6 +1,7 @@
 ﻿using CustomCore.API.Dtos;
 using CustomCore.API.Servicios;
 using Microsoft.AspNetCore.Mvc;
+using System.IdentityModel.Tokens.Jwt;
 //[INICIO][17/9/2026][jgarciad8][Dependencias de autorización]
 using CustomCore.API.Seguridad;
 using Microsoft.AspNetCore.Authorization;
@@ -11,7 +12,7 @@ namespace CustomCore.API.Controllers
     [ApiController]
     [Route("api/citas")]
     [Authorize]
-    public sealed class CitasController(CitaService servicio) : ControllerBase
+    public sealed class CitasController(CitaService servicio, CotizacionService cotizaciones) : ControllerBase
     {
         [HttpGet]
         [Authorize(Policy = PermisosSistema.CitasLeer)]
@@ -76,5 +77,46 @@ namespace CustomCore.API.Controllers
             return actualizada ? NoContent() : NotFound();
         }
         //[FIN][31/8/2026][Rodriale][Confirmar o cancelar sin tocar el resto de la cita]
+
+        //[INICIO][27/10/2026][Rodriale][Cotización previa a la visita para servicios fuera del catálogo]
+        [HttpGet("{id:int}/cotizaciones")]
+        [Authorize(Policy = PermisosSistema.CitasLeer)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public Task<IReadOnlyList<CotizacionDto>> ObtenerCotizaciones(int id, CancellationToken cancellationToken) =>
+            cotizaciones.ObtenerDeCitaAsync(id, cancellationToken);
+
+        [HttpPost("{id:int}/cotizaciones")]
+        [Authorize(Policy = PermisosSistema.OrdenesCotizar)]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<ActionResult> Cotizar(int id, CrearCotizacionRequest request, CancellationToken cancellationToken)
+        {
+            if (!int.TryParse(User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value, out var usuarioId) || usuarioId <= 0)
+                return Unauthorized();
+
+            var idCotizacion = await cotizaciones.CrearDeCitaAsync(id, request, usuarioId, cancellationToken);
+            return idCotizacion is null
+                ? NotFound()
+                : Created($"/api/citas/{id}/cotizaciones", new { idCotizacion });
+        }
+
+        //[INICIO][27/10/2026][Rodriale][Recepción registra lo que respondió el cliente en el taller]
+        [HttpPost("cotizaciones/{idCotizacion:int}/respuesta")]
+        [Authorize(Policy = PermisosSistema.CitasCambiarEstado)]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<ActionResult> RegistrarRespuesta(
+            int idCotizacion,
+            ResponderCotizacionRequest request,
+            CancellationToken cancellationToken)
+        {
+            var respondida = await cotizaciones.ResponderAsync(idCotizacion, null, request.Aceptar!.Value, cancellationToken);
+            return respondida ? NoContent() : NotFound();
+        }
+        //[FIN][27/10/2026][Rodriale][Recepción registra lo que respondió el cliente]
+        //[FIN][27/10/2026][Rodriale][Cotización previa a la visita]
     }
 }
