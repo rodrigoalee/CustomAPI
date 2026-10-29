@@ -60,6 +60,11 @@ builder.Services.AddHttpClient<NotificacionWhatsAppService>();
 builder.Services.Configure<CustomCore.API.Configuracion.OpcionesWhatsApp>(
     builder.Configuration.GetSection(CustomCore.API.Configuracion.OpcionesWhatsApp.Seccion));
 //[FIN][25/10/2026][Rodriale][Avisos por WhatsApp]
+
+//[INICIO][28/10/2026][Rodriale][Los mismos avisos salen también por correo; sin credenciales SMTP solo se omite ese canal]
+builder.Services.Configure<CustomCore.API.Configuracion.OpcionesCorreo>(
+    builder.Configuration.GetSection(CustomCore.API.Configuracion.OpcionesCorreo.Seccion));
+//[FIN][28/10/2026][Rodriale][Los mismos avisos salen también por correo]
 //[FIN][Rodriale][Registro de inyección de dependencias]
 
 //[INICIO][31/8/2026][Rodriale][Enlaza la sección "Facturacion" de appsettings con las opciones de impuesto]
