@@ -301,6 +301,41 @@ namespace CustomCore.API.Data.Migrations
                     b.ToTable("FacturasEncabezado", "customcore");
                 });
 
+            modelBuilder.Entity("CustomCore.API.Entidades.FotoOrden", b =>
+                {
+                    b.Property<int>("IdFotoOrden")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("IdFotoOrden"));
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("FechaSubida")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("OrdenTrabajoId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("UsuarioSubeId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("IdFotoOrden");
+
+                    b.HasIndex("OrdenTrabajoId");
+
+                    b.HasIndex("UsuarioSubeId");
+
+                    b.ToTable("FotosOrden", "customcore");
+                });
+
             modelBuilder.Entity("CustomCore.API.Entidades.InventarioSucursal", b =>
                 {
                     b.Property<int>("IdInventario")
@@ -867,6 +902,23 @@ namespace CustomCore.API.Data.Migrations
                     b.Navigation("UsuarioCajero");
                 });
 
+            modelBuilder.Entity("CustomCore.API.Entidades.FotoOrden", b =>
+                {
+                    b.HasOne("CustomCore.API.Entidades.OrdenTrabajoEncabezado", "OrdenTrabajo")
+                        .WithMany("Fotos")
+                        .HasForeignKey("OrdenTrabajoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CustomCore.API.Entidades.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("UsuarioSubeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OrdenTrabajo");
+                });
+
             modelBuilder.Entity("CustomCore.API.Entidades.InventarioSucursal", b =>
                 {
                     b.HasOne("CustomCore.API.Entidades.Repuesto", null)
@@ -1036,6 +1088,8 @@ namespace CustomCore.API.Data.Migrations
             modelBuilder.Entity("CustomCore.API.Entidades.OrdenTrabajoEncabezado", b =>
                 {
                     b.Navigation("Detalles");
+
+                    b.Navigation("Fotos");
                 });
 
             modelBuilder.Entity("CustomCore.API.Entidades.Permiso", b =>

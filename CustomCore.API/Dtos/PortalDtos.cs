@@ -94,7 +94,11 @@ namespace CustomCore.API.Dtos
         EstadoOrdenTrabajo? EstadoOrden,
         DateTimeOffset? FechaIngreso,
         DateTimeOffset? FechaFinalizacion,
-        bool Pagado);
+        bool Pagado,
+        //[INICIO][29/10/2026][Rodriale][El cliente ve el diagnóstico del mecánico con sus fotos]
+        string? Diagnostico,
+        IReadOnlyList<FotoOrdenDto> Fotos);
+        //[FIN][29/10/2026][Rodriale][El cliente ve el diagnóstico del mecánico con sus fotos]
     //[FIN][24/10/2026][Rodriale][Seguimiento de una cita]
 
     //[INICIO][26/10/2026][Rodriale][Facturas del cliente en su portal]

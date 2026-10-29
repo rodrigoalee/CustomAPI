@@ -106,7 +106,7 @@ public sealed class PortalService(
     {
         var clienteId = await ObtenerClienteIdAsync(idUsuario, cancellationToken);
 
-        return await db.Citas
+        var seguimiento = await db.Citas
             .AsNoTracking()
             .Where(c => c.IdCita == idCita && c.Vehiculo.ClienteId == clienteId)
             .Select(c => new
@@ -124,7 +124,8 @@ public sealed class PortalService(
                         o.FechaIngreso,
                         o.FechaFinalizacion,
                         Pagado = db.FacturasEncabezado.Any(f =>
-                            f.OrdenTrabajoId == o.IdOrdenEncabezado && f.EstadoPago == EstadoPago.Pagado)
+                            f.OrdenTrabajoId == o.IdOrdenEncabezado && f.EstadoPago == EstadoPago.Pagado),
+                        o.Diagnostico
                     })
                     .FirstOrDefault()
             })
@@ -142,8 +143,24 @@ public sealed class PortalService(
                 x.Orden != null ? x.Orden.Estado : null,
                 x.Orden != null ? x.Orden.FechaIngreso : null,
                 x.Orden != null ? x.Orden.FechaFinalizacion : null,
-                x.Orden != null && x.Orden.Pagado))
+                x.Orden != null && x.Orden.Pagado,
+                x.Orden != null ? x.Orden.Diagnostico : null,
+                Array.Empty<FotoOrdenDto>()))
             .FirstOrDefaultAsync(cancellationToken);
+
+        //[INICIO][29/10/2026][Rodriale][Las fotos van en una segunda consulta, solo si la cita es del cliente]
+        if (seguimiento is null)
+            return null;
+
+        var fotos = await db.FotosOrden
+            .AsNoTracking()
+            .Where(f => f.OrdenTrabajo.CitaId == idCita)
+            .OrderBy(f => f.FechaSubida)
+            .Select(f => new FotoOrdenDto(f.IdFotoOrden, f.Url, f.Descripcion, f.FechaSubida))
+            .ToListAsync(cancellationToken);
+
+        return seguimiento with { Fotos = fotos };
+        //[FIN][29/10/2026][Rodriale][Las fotos van en una segunda consulta]
     }
     //[FIN][24/10/2026][Rodriale][Una cita de otro cliente se comporta como inexistente]
 
