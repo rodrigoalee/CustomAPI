@@ -61,6 +61,42 @@ namespace CustomCore.API.Controllers
         }
         //[FIN][25/10/2026][Rodriale][El mecánico escribe su diagnóstico]
 
+        //[INICIO][29/10/2026][Rodriale][Fotos del diagnóstico: el front sube el archivo a Vercel Blob y aquí registra la URL]
+        [HttpPost("{id:int}/fotos")]
+        [Authorize(Policy = PermisosSistema.OrdenesEditar)]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<ActionResult> RegistrarFoto(
+            int id,
+            RegistrarFotoOrdenRequest request,
+            CancellationToken cancellationToken)
+        {
+            if (!int.TryParse(User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value, out var usuarioId) || usuarioId <= 0)
+                return Unauthorized();
+
+            var idFoto = await servicio.RegistrarFotoAsync(id, request, usuarioId, cancellationToken);
+            return idFoto is null
+                ? NotFound()
+                : CreatedAtAction(nameof(ObtenerPorId), new { id }, new { idFoto });
+        }
+
+        [HttpDelete("{id:int}/fotos/{fotoId:int}")]
+        [Authorize(Policy = PermisosSistema.OrdenesEditar)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<ActionResult> EliminarFoto(
+            int id,
+            int fotoId,
+            CancellationToken cancellationToken)
+        {
+            var url = await servicio.EliminarFotoAsync(id, fotoId, cancellationToken);
+            return url is null ? NotFound() : Ok(new { url });
+        }
+        //[FIN][29/10/2026][Rodriale][Fotos del diagnóstico]
+
         //[INICIO][31/8/2026][Rodriale][Detalle de una orden; si no existe se responde 404 y no un 200 con nulos]
         [HttpGet("{id:int}")]
         [Authorize(Policy = PermisosSistema.OrdenesLeer)]

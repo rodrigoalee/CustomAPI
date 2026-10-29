@@ -29,14 +29,38 @@ namespace CustomCore.API.Configuracion
         public string TwilioNumero { get; set; } = string.Empty;
 
         public bool UsaTwilio => Proveedor.Equals("Twilio", StringComparison.OrdinalIgnoreCase);
+        //[FIN][27/10/2026][Rodriale][Proveedor alterno: Twilio]
 
-        public bool Configurado => UsaTwilio
+        //[INICIO][29/10/2026][Rodriale][Proveedor "Tigo": los avisos salen por SMS con la API B2B de Tigo Guatemala en lugar de WhatsApp]
+        public string TigoUrlBase { get; set; } = "https://prod.api.tigo.com";
+
+        public string TigoAutenticacion { get; set; } = string.Empty;
+
+        public string TigoApiKey { get; set; } = string.Empty;
+
+        public string TigoApiSecret { get; set; } = string.Empty;
+
+        public string TigoOrganizacion { get; set; } = string.Empty;
+
+        public string TigoShortcode { get; set; } = string.Empty;
+
+        public string TigoTipoShortcode { get; set; } = "pretty_code";
+
+        public bool UsaTigo => Proveedor.Equals("Tigo", StringComparison.OrdinalIgnoreCase);
+
+        public bool Configurado => UsaTigo
+            ? !string.IsNullOrWhiteSpace(TigoAutenticacion)
+              && !string.IsNullOrWhiteSpace(TigoApiKey)
+              && !string.IsNullOrWhiteSpace(TigoApiSecret)
+              && !string.IsNullOrWhiteSpace(TigoOrganizacion)
+              && !string.IsNullOrWhiteSpace(TigoShortcode)
+            : UsaTwilio
             ? !string.IsNullOrWhiteSpace(TwilioAccountSid)
               && !string.IsNullOrWhiteSpace(TwilioAuthToken)
               && !string.IsNullOrWhiteSpace(TwilioNumero)
             : !string.IsNullOrWhiteSpace(Token)
               && !string.IsNullOrWhiteSpace(PhoneNumberId);
-        //[FIN][27/10/2026][Rodriale][Proveedor alterno: Twilio]
+        //[FIN][29/10/2026][Rodriale][Proveedor "Tigo"]
     }
 }
 //[FIN][25/10/2026][Rodriale][Credenciales de la Cloud API de WhatsApp (Meta)]

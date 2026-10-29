@@ -6,8 +6,11 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using CustomCore.API.Configuracion;
 using CustomCore.API.Data;
+using MailKit.Net.Smtp;
+using MailKit.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using MimeKit;
 
 namespace CustomCore.API.Servicios;
 
@@ -15,6 +18,7 @@ public sealed partial class NotificacionWhatsAppService(
     AppDbContext db,
     HttpClient http,
     IOptions<OpcionesWhatsApp> opciones,
+    IOptions<OpcionesCorreo> opcionesCorreo,
     ILogger<NotificacionWhatsAppService> logger)
 {
     private static readonly CultureInfo Espanol = CultureInfo.GetCultureInfo("es-GT");
@@ -25,6 +29,7 @@ public sealed partial class NotificacionWhatsAppService(
     private sealed record DatosAviso(
         string NombreCliente,
         string Telefono,
+        string Correo,
         string Placa,
         string Sede,
         DateTimeOffset FechaHora,
@@ -32,56 +37,56 @@ public sealed partial class NotificacionWhatsAppService(
         int? IdCita);
 
     public Task CitaAgendadaAsync(int idCita) =>
-        EnviarAsync($"cita {idCita}", DeCita(idCita), datos =>
+        EnviarAsync($"cita {idCita}", "Recibimos tu cita", DeCita(idCita), datos =>
             $"Hola {datos.NombreCliente}, recibimos tu cita en Los Santos Customs para el {Fecha(datos)}" +
             $" en la sede {datos.Sede} con tu vehículo {datos.Placa}{Servicio(datos)}." +
             " Te avisaremos cuando el taller la confirme.");
 
     public Task CitaConfirmadaAsync(int idCita) =>
-        EnviarAsync($"cita {idCita}", DeCita(idCita), datos =>
+        EnviarAsync($"cita {idCita}", "Tu cita fue confirmada", DeCita(idCita), datos =>
             $"Hola {datos.NombreCliente}, tu cita en Los Santos Customs para el {Fecha(datos)}" +
             $" en la sede {datos.Sede} fue confirmada. Te esperamos con tu vehículo {datos.Placa}.");
 
     //[INICIO][27/10/2026][Rodriale][Cotización previa a la visita para un servicio fuera del catálogo]
     public Task CotizacionCitaEnviadaAsync(int idCita, decimal total) =>
-        EnviarAsync($"cita {idCita}", DeCita(idCita), datos =>
+        EnviarAsync($"cita {idCita}", "Cotización de tu cita", DeCita(idCita), datos =>
             $"Hola {datos.NombreCliente}, preparamos la cotización de tu cita para el {Fecha(datos)}" +
             $" por {total.ToString("C", Espanol)}. Revísala y dinos si la aceptas para confirmarla." + Enlace(datos));
     //[FIN][27/10/2026][Rodriale][Cotización previa a la visita]
 
     //[INICIO][27/10/2026][Rodriale][Aviso cuando el taller cancela la cita]
     public Task CitaCanceladaAsync(int idCita) =>
-        EnviarAsync($"cita {idCita}", DeCita(idCita), datos =>
+        EnviarAsync($"cita {idCita}", "Tu cita fue cancelada", DeCita(idCita), datos =>
             $"Hola {datos.NombreCliente}, tu cita en Los Santos Customs para el {Fecha(datos)}" +
             $" en la sede {datos.Sede} fue cancelada. Si necesitas otra visita, agenda una nueva cita o contáctanos.");
     //[FIN][27/10/2026][Rodriale][Aviso cuando el taller cancela la cita]
 
     //[INICIO][26/10/2026][Rodriale][Avisos del avance de la orden: los mismos pasos que ve el cliente en su seguimiento]
     public Task VehiculoRecibidoAsync(int idOrden) =>
-        EnviarAsync($"orden {idOrden}", DeOrden(idOrden), datos =>
+        EnviarAsync($"orden {idOrden}", "Tu vehículo ingresó al taller", DeOrden(idOrden), datos =>
             $"Hola {datos.NombreCliente}, tu vehículo {datos.Placa} ya ingresó a Los Santos Customs en la sede {datos.Sede}." +
             " Te avisaremos cuando nuestros mecánicos empiecen a trabajar en él." + Enlace(datos));
 
     public Task TrabajoIniciadoAsync(int idOrden) =>
-        EnviarAsync($"orden {idOrden}", DeOrden(idOrden), datos =>
+        EnviarAsync($"orden {idOrden}", "Empezamos a trabajar en tu vehículo", DeOrden(idOrden), datos =>
             $"Hola {datos.NombreCliente}, nuestros mecánicos ya están trabajando en tu vehículo {datos.Placa}" +
             $"{Servicio(datos)}." + Enlace(datos));
 
     public Task TrabajoTerminadoAsync(int idOrden) =>
-        EnviarAsync($"orden {idOrden}", DeOrden(idOrden), datos =>
+        EnviarAsync($"orden {idOrden}", "Tu vehículo está listo", DeOrden(idOrden), datos =>
             $"Hola {datos.NombreCliente}, terminamos el trabajo en tu vehículo {datos.Placa}." +
             $" Ya puedes pasar a recogerlo a la sede {datos.Sede}." + Enlace(datos));
 
     //[INICIO][26/10/2026][Rodriale][Cotización de trabajo adicional: el cliente la revisa y responde en su seguimiento]
     public Task CotizacionEnviadaAsync(int idOrden, decimal total) =>
-        EnviarAsync($"orden {idOrden}", DeOrden(idOrden), datos =>
+        EnviarAsync($"orden {idOrden}", "Cotización de trabajo adicional", DeOrden(idOrden), datos =>
             $"Hola {datos.NombreCliente}, preparamos una cotización para tu vehículo {datos.Placa}" +
             $" por {total.ToString("C", Espanol)}. Revísala y dinos si la aceptas." + Enlace(datos));
     //[FIN][26/10/2026][Rodriale][Cotización de trabajo adicional]
 
     //[INICIO][26/10/2026][Rodriale][Al recoger el vehículo: total y enlace a la pasarela de pago]
     public Task FacturaListaAsync(int idOrden, decimal total, string token) =>
-        EnviarAsync($"orden {idOrden}", DeOrden(idOrden), datos =>
+        EnviarAsync($"orden {idOrden}", "Total y enlace de pago", DeOrden(idOrden), datos =>
             $"Hola {datos.NombreCliente}, tu vehículo {datos.Placa} está listo. El total es {total.ToString("C", Espanol)}." +
             $" Puedes pagar aquí: {opciones.Value.UrlPago.Replace("{token}", token)}");
     //[FIN][26/10/2026][Rodriale][Al recoger el vehículo]
@@ -98,6 +103,7 @@ public sealed partial class NotificacionWhatsAppService(
             .Select(c => new DatosAviso(
                 c.Vehiculo.Cliente.NombreCompleto,
                 c.Vehiculo.Cliente.Telefono,
+                c.Vehiculo.Cliente.Correo,
                 c.Vehiculo.Placa,
                 db.Sucursales.Where(s => s.IdSucursal == c.SucursalId).Select(s => s.Nombre).First(),
                 c.FechaHora,
@@ -111,6 +117,7 @@ public sealed partial class NotificacionWhatsAppService(
             .Select(o => new DatosAviso(
                 o.Vehiculo.Cliente.NombreCompleto,
                 o.Vehiculo.Cliente.Telefono,
+                o.Vehiculo.Cliente.Correo,
                 o.Vehiculo.Placa,
                 db.Sucursales.Where(s => s.IdSucursal == o.SucursalId).Select(s => s.Nombre).First(),
                 o.FechaIngreso,
@@ -127,9 +134,73 @@ public sealed partial class NotificacionWhatsAppService(
     private static string Servicio(DatosAviso datos) =>
         datos.Servicio is null ? string.Empty : $" para {datos.Servicio}";
 
-    private async Task EnviarAsync(string origen, IQueryable<DatosAviso> consulta, Func<DatosAviso, string> mensaje)
+    //[INICIO][28/10/2026][Rodriale][El mismo aviso sale por WhatsApp y por correo; si un canal falla, el otro sale igual]
+    private async Task EnviarAsync(string origen, string asunto, IQueryable<DatosAviso> consulta, Func<DatosAviso, string> mensaje)
     {
-        logger.LogInformation("Preparando aviso de WhatsApp de la {Origen}.", origen);
+        logger.LogInformation("Preparando aviso de la {Origen}.", origen);
+        if (!opciones.Value.Configurado && !opcionesCorreo.Value.Configurado)
+        {
+            logger.LogWarning("Ni WhatsApp ni el correo están configurados; no se envió el aviso de la {Origen}.", origen);
+            return;
+        }
+
+        DatosAviso? datos;
+        try
+        {
+            datos = await consulta.FirstOrDefaultAsync();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "No se pudieron leer los datos del aviso de la {Origen}.", origen);
+            return;
+        }
+
+        if (datos is null)
+        {
+            logger.LogWarning("No se encontró la {Origen} para armar el aviso.", origen);
+            return;
+        }
+
+        var texto = mensaje(datos);
+        await Task.WhenAll(
+            EnviarPorWhatsAppAsync(origen, datos.Telefono, texto),
+            EnviarPorCorreoAsync(origen, datos.NombreCliente, datos.Correo, asunto, texto));
+    }
+
+    private async Task EnviarPorCorreoAsync(string origen, string nombre, string destino, string asunto, string texto)
+    {
+        var configuracion = opcionesCorreo.Value;
+        if (!configuracion.Configurado)
+        {
+            logger.LogWarning("El correo no está configurado; no se envió el aviso de la {Origen}.", origen);
+            return;
+        }
+
+        try
+        {
+            var correo = new MimeMessage();
+            correo.From.Add(new MailboxAddress(configuracion.NombreRemitente, configuracion.Usuario));
+            correo.To.Add(new MailboxAddress(nombre, destino));
+            correo.Subject = $"{asunto} · {configuracion.NombreRemitente}";
+            correo.Body = new TextPart("plain") { Text = texto };
+
+            using var smtp = new SmtpClient();
+            await smtp.ConnectAsync(configuracion.Servidor, configuracion.Puerto, SecureSocketOptions.StartTls);
+            await smtp.AuthenticateAsync(configuracion.Usuario, configuracion.Contrasena);
+            await smtp.SendAsync(correo);
+            await smtp.DisconnectAsync(true);
+
+            logger.LogInformation("Aviso por correo de la {Origen} enviado.", origen);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "No se pudo enviar el aviso por correo de la {Origen}.", origen);
+        }
+    }
+    //[FIN][28/10/2026][Rodriale][El mismo aviso sale por WhatsApp y por correo]
+
+    private async Task EnviarPorWhatsAppAsync(string origen, string telefonoCliente, string texto)
+    {
         var configuracion = opciones.Value;
         if (!configuracion.Configurado)
         {
@@ -139,15 +210,7 @@ public sealed partial class NotificacionWhatsAppService(
 
         try
         {
-            var datos = await consulta.FirstOrDefaultAsync();
-
-            if (datos is null)
-            {
-                logger.LogWarning("No se encontró la {Origen} para armar el aviso de WhatsApp.", origen);
-                return;
-            }
-
-            var telefono = datos.Telefono.Replace(" ", string.Empty).Replace("-", string.Empty);
+            var telefono = telefonoCliente.Replace(" ", string.Empty).Replace("-", string.Empty);
             //[INICIO][26/10/2026][Rodriale][Clientes viejos guardados con 8 dígitos sin código: se asume Guatemala]
             if (telefono.Length == 8 && telefono.All(char.IsAsciiDigit))
                 telefono = "+502" + telefono;
@@ -158,10 +221,18 @@ public sealed partial class NotificacionWhatsAppService(
                 return;
             }
 
+            //[INICIO][29/10/2026][Rodriale][Con Tigo el aviso sale por SMS en lugar de WhatsApp]
+            if (configuracion.UsaTigo)
+            {
+                await EnviarPorTigoAsync(configuracion, origen, telefono, texto);
+                return;
+            }
+            //[FIN][29/10/2026][Rodriale][Con Tigo el aviso sale por SMS]
+
             //[INICIO][27/10/2026][Rodriale][Con Twilio el mensaje sale por su API y el resto del flujo queda igual]
             if (configuracion.UsaTwilio)
             {
-                await EnviarPorTwilioAsync(configuracion, origen, telefono, mensaje(datos));
+                await EnviarPorTwilioAsync(configuracion, origen, telefono, texto);
                 return;
             }
             //[FIN][27/10/2026][Rodriale][Con Twilio el mensaje sale por su API]
@@ -172,7 +243,7 @@ public sealed partial class NotificacionWhatsAppService(
                 messaging_product = "whatsapp",
                 to = telefono.TrimStart('+'),
                 type = "text",
-                text = new { body = mensaje(datos) }
+                text = new { body = texto }
             };
             //[FIN][25/10/2026][Rodriale][Meta pide el número sin el "+"]
 
@@ -240,5 +311,75 @@ public sealed partial class NotificacionWhatsAppService(
         logger.LogInformation("Aviso de WhatsApp de la {Origen} enviado por Twilio.", origen);
     }
     //[FIN][27/10/2026][Rodriale][Twilio]
+
+    //[INICIO][29/10/2026][Rodriale][SMS por Tigo: token OAuth por client_credentials y luego el mensaje con APIKey/APISecret]
+    // El token dura cerca de una hora; se guarda entre avisos para no pedir uno por cada SMS.
+    private static (string Valor, DateTimeOffset Vence)? tokenTigo;
+
+    private async Task EnviarPorTigoAsync(OpcionesWhatsApp configuracion, string origen, string telefono, string texto)
+    {
+        var token = await TokenTigoAsync(configuracion);
+        var cuerpo = new
+        {
+            protocol = "sms",
+            shortcodeId = configuracion.TigoShortcode,
+            shortcodeType = configuracion.TigoTipoShortcode,
+            msisdn = telefono.TrimStart('+'),
+            priority = 0,
+            body = texto
+        };
+
+        using var solicitud = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{configuracion.TigoUrlBase}/v1/tigo/b2b/gt/comcorp/messages/organizations/{configuracion.TigoOrganizacion}")
+        {
+            Content = new StringContent(JsonSerializer.Serialize(cuerpo), Encoding.UTF8, "application/json")
+        };
+        solicitud.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        solicitud.Headers.Add("APIKey", configuracion.TigoApiKey);
+        solicitud.Headers.Add("APISecret", configuracion.TigoApiSecret);
+
+        using var respuesta = await http.SendAsync(solicitud);
+        var contenido = await respuesta.Content.ReadAsStringAsync();
+
+        if (!respuesta.IsSuccessStatusCode)
+        {
+            if (respuesta.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                tokenTigo = null;
+            logger.LogError("Tigo rechazó el SMS de la {Origen} ({Estado}): {Respuesta}",
+                origen, (int)respuesta.StatusCode, contenido);
+            return;
+        }
+
+        logger.LogInformation("SMS de la {Origen} enviado por Tigo: {Respuesta}", origen, contenido);
+    }
+
+    private async Task<string> TokenTigoAsync(OpcionesWhatsApp configuracion)
+    {
+        if (tokenTigo is { } guardado && guardado.Vence > DateTimeOffset.UtcNow)
+            return guardado.Valor;
+
+        using var solicitud = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{configuracion.TigoUrlBase}/oauth/client_credential/accesstoken?grant_type=client_credentials");
+        solicitud.Headers.Authorization = new AuthenticationHeaderValue("Basic", configuracion.TigoAutenticacion);
+
+        using var respuesta = await http.SendAsync(solicitud);
+        var contenido = await respuesta.Content.ReadAsStringAsync();
+        if (!respuesta.IsSuccessStatusCode)
+            throw new HttpRequestException($"Tigo no entregó el token ({(int)respuesta.StatusCode}): {contenido}");
+
+        using var json = JsonDocument.Parse(contenido);
+        var valor = json.RootElement.GetProperty("access_token").GetString()
+            ?? throw new HttpRequestException("Tigo respondió sin access_token.");
+
+        // Apigee manda expires_in como texto ("3599"); se renueva un minuto antes de que venza.
+        if (json.RootElement.TryGetProperty("expires_in", out var expira)
+            && int.TryParse(expira.ToString(), out var segundos) && segundos > 60)
+            tokenTigo = (valor, DateTimeOffset.UtcNow.AddSeconds(segundos - 60));
+
+        return valor;
+    }
+    //[FIN][29/10/2026][Rodriale][SMS por Tigo]
 }
 //[FIN][25/10/2026][Rodriale][Avisos de citas por WhatsApp con la Cloud API de Meta]

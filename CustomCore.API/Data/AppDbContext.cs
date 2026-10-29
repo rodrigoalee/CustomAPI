@@ -31,6 +31,9 @@ namespace CustomCore.API.Data
         //[INICIO][26/10/2026][Rodriale][Cotizaciones de trabajo fuera del catálogo]
         public DbSet<Cotizacion> Cotizaciones => Set<Cotizacion>();
         //[FIN][26/10/2026][Rodriale][Cotizaciones de trabajo fuera del catálogo]
+        //[INICIO][29/10/2026][Rodriale][Fotos del diagnóstico]
+        public DbSet<FotoOrden> FotosOrden => Set<FotoOrden>();
+        //[FIN][29/10/2026][Rodriale][Fotos del diagnóstico]
         //[FIN][27/8/2026][Rodriale][definimos las entidades para que sean públicas para poder hacer consultas]
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -35,5 +35,8 @@ public class OrdenTrabajoEncabezado
     public Usuario UsuarioRecepcion { get; set; } = null!;
     public Usuario? MecanicoAsignado { get; set; }
     public ICollection<OrdenTrabajoDetalle> Detalles { get; } = new List<OrdenTrabajoDetalle>();
+    //[INICIO][29/10/2026][Rodriale][Fotos del diagnóstico]
+    public ICollection<FotoOrden> Fotos { get; } = new List<FotoOrden>();
+    //[FIN][29/10/2026][Rodriale][Fotos del diagnóstico]
 }
 //[FIN][28/8/2026][Rodriale][Encabezado de la orden de trabajo con cierre y responsables]
