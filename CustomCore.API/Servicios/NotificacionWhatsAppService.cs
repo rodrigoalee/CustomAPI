@@ -1,5 +1,6 @@
 //[INICIO][25/10/2026][Rodriale][Avisos de citas por WhatsApp con la Cloud API de Meta; un aviso que no sale nunca tumba la cita]
 using System.Globalization;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -33,68 +34,113 @@ public sealed partial class NotificacionWhatsAppService(
         string Placa,
         string Sede,
         DateTimeOffset FechaHora,
-        string? Servicio,
         int? IdCita);
 
+    //[INICIO][29/10/2026][Rodriale][Texto y enlace por separado: el SMS los une y el correo pone el enlace en un botón]
+    private sealed record Aviso(string Texto, string? Enlace = null, string? Boton = null, DiagnosticoAviso? Diagnostico = null)
+    {
+        public string TextoCompleto => Enlace is null ? Texto : $"{Texto} {Enlace}";
+    }
+
+    private sealed record DiagnosticoAviso(string? Texto, IReadOnlyList<FotoAviso> Fotos);
+
+    private sealed record FotoAviso(string Url, string? Descripcion);
+    //[FIN][29/10/2026][Rodriale][Texto y enlace por separado]
+
+    //[INICIO][29/10/2026][Rodriale][Textos cortos: Tigo antepone "Volcan de Agua: " (16) y el SMS debe quedar en 160 caracteres]
     public Task CitaAgendadaAsync(int idCita) =>
-        EnviarAsync($"cita {idCita}", "Recibimos tu cita", DeCita(idCita), datos =>
-            $"Hola {datos.NombreCliente}, recibimos tu cita en Los Santos Customs para el {Fecha(datos)}" +
-            $" en la sede {datos.Sede} con tu vehículo {datos.Placa}{Servicio(datos)}." +
-            " Te avisaremos cuando el taller la confirme.");
+        EnviarAsync($"cita {idCita}", "Recibimos tu cita", DeCita(idCita), datos => new Aviso(
+            $"Hola {Nombre(datos)}, Los Santos Customs recibió tu cita del {Fecha(datos)} en {datos.Sede}." +
+            " Te confirmaremos pronto."));
 
     public Task CitaConfirmadaAsync(int idCita) =>
-        EnviarAsync($"cita {idCita}", "Tu cita fue confirmada", DeCita(idCita), datos =>
-            $"Hola {datos.NombreCliente}, tu cita en Los Santos Customs para el {Fecha(datos)}" +
-            $" en la sede {datos.Sede} fue confirmada. Te esperamos con tu vehículo {datos.Placa}.");
+        EnviarAsync($"cita {idCita}", "Tu cita fue confirmada", DeCita(idCita), datos => new Aviso(
+            $"Hola {Nombre(datos)}, Los Santos Customs confirmó tu cita del {Fecha(datos)} en {datos.Sede}. ¡Te esperamos!"));
 
     //[INICIO][27/10/2026][Rodriale][Cotización previa a la visita para un servicio fuera del catálogo]
     public Task CotizacionCitaEnviadaAsync(int idCita, decimal total) =>
-        EnviarAsync($"cita {idCita}", "Cotización de tu cita", DeCita(idCita), datos =>
-            $"Hola {datos.NombreCliente}, preparamos la cotización de tu cita para el {Fecha(datos)}" +
-            $" por {total.ToString("C", Espanol)}. Revísala y dinos si la aceptas para confirmarla." + Enlace(datos));
+        EnviarAsync($"cita {idCita}", "Cotización de tu cita", DeCita(idCita), datos => new Aviso(
+            $"Hola {Nombre(datos)}, Los Santos Customs te envió la cotización de tu cita: {total.ToString("C", Espanol)}.",
+            Seguimiento(datos), "Ver cotización"));
     //[FIN][27/10/2026][Rodriale][Cotización previa a la visita]
 
     //[INICIO][27/10/2026][Rodriale][Aviso cuando el taller cancela la cita]
     public Task CitaCanceladaAsync(int idCita) =>
-        EnviarAsync($"cita {idCita}", "Tu cita fue cancelada", DeCita(idCita), datos =>
-            $"Hola {datos.NombreCliente}, tu cita en Los Santos Customs para el {Fecha(datos)}" +
-            $" en la sede {datos.Sede} fue cancelada. Si necesitas otra visita, agenda una nueva cita o contáctanos.");
+        EnviarAsync($"cita {idCita}", "Tu cita fue cancelada", DeCita(idCita), datos => new Aviso(
+            $"Hola {Nombre(datos)}, Los Santos Customs canceló tu cita del {Fecha(datos)}." +
+            " Si necesitas otra, agenda una nueva o contáctanos."));
     //[FIN][27/10/2026][Rodriale][Aviso cuando el taller cancela la cita]
 
     //[INICIO][26/10/2026][Rodriale][Avisos del avance de la orden: los mismos pasos que ve el cliente en su seguimiento]
     public Task VehiculoRecibidoAsync(int idOrden) =>
-        EnviarAsync($"orden {idOrden}", "Tu vehículo ingresó al taller", DeOrden(idOrden), datos =>
-            $"Hola {datos.NombreCliente}, tu vehículo {datos.Placa} ya ingresó a Los Santos Customs en la sede {datos.Sede}." +
-            " Te avisaremos cuando nuestros mecánicos empiecen a trabajar en él." + Enlace(datos));
+        EnviarAsync($"orden {idOrden}", "Tu vehículo ingresó al taller", DeOrden(idOrden), datos => new Aviso(
+            $"Hola {Nombre(datos)}, tu {datos.Placa} ingresó a Los Santos Customs. Te avisaremos al empezar.",
+            Seguimiento(datos), "Ver seguimiento"));
 
-    public Task TrabajoIniciadoAsync(int idOrden) =>
-        EnviarAsync($"orden {idOrden}", "Empezamos a trabajar en tu vehículo", DeOrden(idOrden), datos =>
-            $"Hola {datos.NombreCliente}, nuestros mecánicos ya están trabajando en tu vehículo {datos.Placa}" +
-            $"{Servicio(datos)}." + Enlace(datos));
+    //[INICIO][29/10/2026][Rodriale][El correo de inicio lleva el diagnóstico y las fotos que subió el mecánico]
+    public async Task TrabajoIniciadoAsync(int idOrden)
+    {
+        var diagnostico = await DiagnosticoAsync(idOrden);
+        await EnviarAsync($"orden {idOrden}", "Empezamos a trabajar en tu vehículo", DeOrden(idOrden), datos => new Aviso(
+            $"Hola {Nombre(datos)}, Los Santos Customs ya está trabajando en tu {datos.Placa}.",
+            Seguimiento(datos), "Ver seguimiento", diagnostico));
+    }
+
+    private async Task<DiagnosticoAviso?> DiagnosticoAsync(int idOrden)
+    {
+        try
+        {
+            var texto = await db.OrdenesTrabajoEncabezado
+                .AsNoTracking()
+                .Where(o => o.IdOrdenEncabezado == idOrden)
+                .Select(o => o.Diagnostico)
+                .FirstOrDefaultAsync();
+            var fotos = await db.FotosOrden
+                .AsNoTracking()
+                .Where(f => f.OrdenTrabajoId == idOrden)
+                .OrderBy(f => f.FechaSubida)
+                .Select(f => new FotoAviso(f.Url, f.Descripcion))
+                .ToListAsync();
+
+            return string.IsNullOrWhiteSpace(texto) && fotos.Count == 0 ? null : new DiagnosticoAviso(texto, fotos);
+        }
+        catch (Exception ex)
+        {
+            // Sin el diagnóstico el aviso sale igual, solo con el texto.
+            logger.LogError(ex, "No se pudo leer el diagnóstico de la orden {IdOrden} para el aviso.", idOrden);
+            return null;
+        }
+    }
+    //[FIN][29/10/2026][Rodriale][El correo de inicio lleva el diagnóstico y las fotos]
 
     public Task TrabajoTerminadoAsync(int idOrden) =>
-        EnviarAsync($"orden {idOrden}", "Tu vehículo está listo", DeOrden(idOrden), datos =>
-            $"Hola {datos.NombreCliente}, terminamos el trabajo en tu vehículo {datos.Placa}." +
-            $" Ya puedes pasar a recogerlo a la sede {datos.Sede}." + Enlace(datos));
+        EnviarAsync($"orden {idOrden}", "Tu vehículo está listo", DeOrden(idOrden), datos => new Aviso(
+            $"Hola {Nombre(datos)}, tu {datos.Placa} está listo. Ya puedes recogerlo en Los Santos Customs.",
+            Seguimiento(datos), "Ver seguimiento"));
 
     //[INICIO][26/10/2026][Rodriale][Cotización de trabajo adicional: el cliente la revisa y responde en su seguimiento]
     public Task CotizacionEnviadaAsync(int idOrden, decimal total) =>
-        EnviarAsync($"orden {idOrden}", "Cotización de trabajo adicional", DeOrden(idOrden), datos =>
-            $"Hola {datos.NombreCliente}, preparamos una cotización para tu vehículo {datos.Placa}" +
-            $" por {total.ToString("C", Espanol)}. Revísala y dinos si la aceptas." + Enlace(datos));
+        EnviarAsync($"orden {idOrden}", "Cotización de trabajo adicional", DeOrden(idOrden), datos => new Aviso(
+            $"Hola {Nombre(datos)}, Los Santos Customs te envió una cotización de {total.ToString("C", Espanol)}" +
+            $" para tu {datos.Placa}.",
+            Seguimiento(datos), "Ver cotización"));
     //[FIN][26/10/2026][Rodriale][Cotización de trabajo adicional]
 
     //[INICIO][26/10/2026][Rodriale][Al recoger el vehículo: total y enlace a la pasarela de pago]
     public Task FacturaListaAsync(int idOrden, decimal total, string token) =>
-        EnviarAsync($"orden {idOrden}", "Total y enlace de pago", DeOrden(idOrden), datos =>
-            $"Hola {datos.NombreCliente}, tu vehículo {datos.Placa} está listo. El total es {total.ToString("C", Espanol)}." +
-            $" Puedes pagar aquí: {opciones.Value.UrlPago.Replace("{token}", token)}");
+        EnviarAsync($"orden {idOrden}", "Total y enlace de pago", DeOrden(idOrden), datos => new Aviso(
+            $"Los Santos Customs: paga {total.ToString("C", Espanol)} aquí:",
+            opciones.Value.UrlPago.Replace("{token}", token), "Pagar ahora"));
     //[FIN][26/10/2026][Rodriale][Al recoger el vehículo]
 
-    private string Enlace(DatosAviso datos) =>
+    private string? Seguimiento(DatosAviso datos) =>
         datos.IdCita is { } idCita && !string.IsNullOrWhiteSpace(opciones.Value.UrlSeguimiento)
-            ? $" Sigue el avance aquí: {opciones.Value.UrlSeguimiento.Replace("{idCita}", idCita.ToString())}"
-            : string.Empty;
+            ? opciones.Value.UrlSeguimiento.Replace("{idCita}", idCita.ToString())
+            : null;
+
+    private static string Nombre(DatosAviso datos) =>
+        datos.NombreCliente.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? datos.NombreCliente;
+    //[FIN][29/10/2026][Rodriale][Textos cortos]
 
     private IQueryable<DatosAviso> DeCita(int idCita) =>
         db.Citas
@@ -107,7 +153,6 @@ public sealed partial class NotificacionWhatsAppService(
                 c.Vehiculo.Placa,
                 db.Sucursales.Where(s => s.IdSucursal == c.SucursalId).Select(s => s.Nombre).First(),
                 c.FechaHora,
-                c.Servicio != null ? c.Servicio.Nombre : null,
                 c.IdCita));
 
     private IQueryable<DatosAviso> DeOrden(int idOrden) =>
@@ -121,21 +166,17 @@ public sealed partial class NotificacionWhatsAppService(
                 o.Vehiculo.Placa,
                 db.Sucursales.Where(s => s.IdSucursal == o.SucursalId).Select(s => s.Nombre).First(),
                 o.FechaIngreso,
-                o.Cita != null && o.Cita.Servicio != null ? o.Cita.Servicio.Nombre : null,
                 o.CitaId));
     //[FIN][26/10/2026][Rodriale][Avisos del avance de la orden]
 
     private static string Fecha(DatosAviso datos)
     {
         var local = TimeZoneInfo.ConvertTime(datos.FechaHora, HorarioTaller.Zona);
-        return local.ToString("dddd d 'de' MMMM 'a las' h:mm tt", Espanol);
+        return local.ToString("dddd d/M h:mm tt", Espanol);
     }
 
-    private static string Servicio(DatosAviso datos) =>
-        datos.Servicio is null ? string.Empty : $" para {datos.Servicio}";
-
     //[INICIO][28/10/2026][Rodriale][El mismo aviso sale por WhatsApp y por correo; si un canal falla, el otro sale igual]
-    private async Task EnviarAsync(string origen, string asunto, IQueryable<DatosAviso> consulta, Func<DatosAviso, string> mensaje)
+    private async Task EnviarAsync(string origen, string asunto, IQueryable<DatosAviso> consulta, Func<DatosAviso, Aviso> mensaje)
     {
         logger.LogInformation("Preparando aviso de la {Origen}.", origen);
         if (!opciones.Value.Configurado && !opcionesCorreo.Value.Configurado)
@@ -161,13 +202,13 @@ public sealed partial class NotificacionWhatsAppService(
             return;
         }
 
-        var texto = mensaje(datos);
+        var aviso = mensaje(datos);
         await Task.WhenAll(
-            EnviarPorWhatsAppAsync(origen, datos.Telefono, texto),
-            EnviarPorCorreoAsync(origen, datos.NombreCliente, datos.Correo, asunto, texto));
+            EnviarPorWhatsAppAsync(origen, datos.Telefono, aviso.TextoCompleto),
+            EnviarPorCorreoAsync(origen, datos.NombreCliente, datos.Correo, asunto, aviso));
     }
 
-    private async Task EnviarPorCorreoAsync(string origen, string nombre, string destino, string asunto, string texto)
+    private async Task EnviarPorCorreoAsync(string origen, string nombre, string destino, string asunto, Aviso aviso)
     {
         var configuracion = opcionesCorreo.Value;
         if (!configuracion.Configurado)
@@ -182,7 +223,13 @@ public sealed partial class NotificacionWhatsAppService(
             correo.From.Add(new MailboxAddress(configuracion.NombreRemitente, configuracion.Usuario));
             correo.To.Add(new MailboxAddress(nombre, destino));
             correo.Subject = $"{asunto} · {configuracion.NombreRemitente}";
-            correo.Body = new TextPart("plain") { Text = texto };
+            //[INICIO][29/10/2026][Rodriale][Correo en HTML con su versión en texto para los clientes que no muestran HTML]
+            correo.Body = new BodyBuilder
+            {
+                TextBody = TextoCorreo(aviso),
+                HtmlBody = HtmlCorreo(asunto, aviso)
+            }.ToMessageBody();
+            //[FIN][29/10/2026][Rodriale][Correo en HTML]
 
             using var smtp = new SmtpClient();
             await smtp.ConnectAsync(configuracion.Servidor, configuracion.Puerto, SecureSocketOptions.StartTls);
@@ -198,6 +245,72 @@ public sealed partial class NotificacionWhatsAppService(
         }
     }
     //[FIN][28/10/2026][Rodriale][El mismo aviso sale por WhatsApp y por correo]
+
+    //[INICIO][29/10/2026][Rodriale][Plantilla del correo: una columna con tablas y estilos en línea, que es lo que respetan Gmail y Outlook]
+    private static string TextoCorreo(Aviso aviso)
+    {
+        var texto = new StringBuilder(aviso.TextoCompleto);
+        if (aviso.Diagnostico is { } diagnostico)
+        {
+            if (!string.IsNullOrWhiteSpace(diagnostico.Texto))
+                texto.Append("\n\nDiagnóstico:\n").Append(diagnostico.Texto.Trim());
+            if (diagnostico.Fotos.Count > 0)
+                texto.Append($"\n\nEl mecánico adjuntó {diagnostico.Fotos.Count} foto(s); puedes verlas en tu seguimiento.");
+        }
+        return texto.ToString();
+    }
+
+    private static string HtmlCorreo(string asunto, Aviso aviso)
+    {
+        static string Html(string texto) => WebUtility.HtmlEncode(texto.Trim()).Replace("\n", "<br>");
+
+        var cuerpo = new StringBuilder();
+        cuerpo.Append($"""<p style="margin:0 0 16px;font-size:16px;line-height:24px">{Html(aviso.Texto)}</p>""");
+
+        if (aviso.Enlace is { } enlace)
+            cuerpo.Append($"""
+                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 24px"><tr>
+                <td style="background:#111827;border-radius:6px">
+                <a href="{WebUtility.HtmlEncode(enlace)}" style="display:inline-block;padding:12px 24px;color:#ffffff;font-weight:bold;text-decoration:none">{Html(aviso.Boton ?? "Abrir")}</a>
+                </td></tr></table>
+                """);
+
+        if (aviso.Diagnostico is { } diagnostico)
+        {
+            cuerpo.Append("""<h2 style="margin:24px 0 8px;font-size:18px">Diagnóstico del mecánico</h2>""");
+            if (!string.IsNullOrWhiteSpace(diagnostico.Texto))
+                cuerpo.Append($"""<p style="margin:0 0 16px;font-size:15px;line-height:22px">{Html(diagnostico.Texto)}</p>""");
+
+            foreach (var foto in diagnostico.Fotos)
+            {
+                var descripcion = string.IsNullOrWhiteSpace(foto.Descripcion) ? "Foto del diagnóstico" : foto.Descripcion;
+                cuerpo.Append($"""
+                    <img src="{WebUtility.HtmlEncode(foto.Url)}" alt="{WebUtility.HtmlEncode(descripcion.Trim())}" width="552"
+                        style="display:block;width:100%;max-width:552px;height:auto;border-radius:6px;margin:16px 0 6px">
+                    """);
+                if (!string.IsNullOrWhiteSpace(foto.Descripcion))
+                    cuerpo.Append($"""<p style="margin:0 0 8px;font-size:14px;line-height:20px;color:#4b5563">{Html(foto.Descripcion)}</p>""");
+            }
+        }
+
+        return $"""
+            <!doctype html>
+            <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{Html(asunto)}</title></head>
+            <body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#111827">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6"><tr><td align="center" style="padding:24px 12px">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden">
+            <tr><td style="background:#111827;padding:20px 24px;color:#ffffff;font-size:20px;font-weight:bold">Los Santos Customs</td></tr>
+            <tr><td style="padding:24px">
+            <h1 style="margin:0 0 16px;font-size:22px">{Html(asunto)}</h1>
+            {cuerpo}
+            </td></tr>
+            <tr><td style="padding:16px 24px;background:#f9fafb;color:#6b7280;font-size:12px">Este es un aviso automático de Los Santos Customs.</td></tr>
+            </table>
+            </td></tr></table>
+            </body></html>
+            """;
+    }
+    //[FIN][29/10/2026][Rodriale][Plantilla del correo]
 
     private async Task EnviarPorWhatsAppAsync(string origen, string telefonoCliente, string texto)
     {
