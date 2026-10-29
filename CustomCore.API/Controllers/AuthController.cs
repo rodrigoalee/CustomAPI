@@ -16,7 +16,7 @@ public sealed class AuthController(
     RegistroService registroService,
     CuentaGoogleService cuentaGoogleService) : ControllerBase
 {
-    //[INICIO][23/10/2026][Rodriale][Login con Google. Sin la política "registro" a propósito: reparte por IP y todas las llamadas llegan desde el servidor de Vercel, así que los clientes legítimos se limitarían entre sí. No agregarla por simetría]
+    //[INICIO][23/10/2026][Rodriale][Login con Google Sin la política "registro" a propósito: reparte por IP y todas las llamadas llegan desde el servidor de Vercel, así que los clientes legítimos se limitarían entre sí. No agregarla por simetría]
     [AllowAnonymous]
     [HttpPost("google")]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
