@@ -221,6 +221,14 @@ public sealed partial class NotificacionWhatsAppService(
                 return;
             }
 
+            //[INICIO][29/10/2026][Rodriale][Con Tigo el aviso sale por SMS en lugar de WhatsApp]
+            if (configuracion.UsaTigo)
+            {
+                await EnviarPorTigoAsync(configuracion, origen, telefono, texto);
+                return;
+            }
+            //[FIN][29/10/2026][Rodriale][Con Tigo el aviso sale por SMS]
+
             //[INICIO][27/10/2026][Rodriale][Con Twilio el mensaje sale por su API y el resto del flujo queda igual]
             if (configuracion.UsaTwilio)
             {
@@ -303,5 +311,75 @@ public sealed partial class NotificacionWhatsAppService(
         logger.LogInformation("Aviso de WhatsApp de la {Origen} enviado por Twilio.", origen);
     }
     //[FIN][27/10/2026][Rodriale][Twilio]
+
+    //[INICIO][29/10/2026][Rodriale][SMS por Tigo: token OAuth por client_credentials y luego el mensaje con APIKey/APISecret]
+    // El token dura cerca de una hora; se guarda entre avisos para no pedir uno por cada SMS.
+    private static (string Valor, DateTimeOffset Vence)? tokenTigo;
+
+    private async Task EnviarPorTigoAsync(OpcionesWhatsApp configuracion, string origen, string telefono, string texto)
+    {
+        var token = await TokenTigoAsync(configuracion);
+        var cuerpo = new
+        {
+            protocol = "sms",
+            shortcodeId = configuracion.TigoShortcode,
+            shortcodeType = configuracion.TigoTipoShortcode,
+            msisdn = telefono.TrimStart('+'),
+            priority = 0,
+            body = texto
+        };
+
+        using var solicitud = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{configuracion.TigoUrlBase}/v1/tigo/b2b/gt/comcorp/messages/organizations/{configuracion.TigoOrganizacion}")
+        {
+            Content = new StringContent(JsonSerializer.Serialize(cuerpo), Encoding.UTF8, "application/json")
+        };
+        solicitud.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        solicitud.Headers.Add("APIKey", configuracion.TigoApiKey);
+        solicitud.Headers.Add("APISecret", configuracion.TigoApiSecret);
+
+        using var respuesta = await http.SendAsync(solicitud);
+        var contenido = await respuesta.Content.ReadAsStringAsync();
+
+        if (!respuesta.IsSuccessStatusCode)
+        {
+            if (respuesta.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                tokenTigo = null;
+            logger.LogError("Tigo rechazó el SMS de la {Origen} ({Estado}): {Respuesta}",
+                origen, (int)respuesta.StatusCode, contenido);
+            return;
+        }
+
+        logger.LogInformation("SMS de la {Origen} enviado por Tigo: {Respuesta}", origen, contenido);
+    }
+
+    private async Task<string> TokenTigoAsync(OpcionesWhatsApp configuracion)
+    {
+        if (tokenTigo is { } guardado && guardado.Vence > DateTimeOffset.UtcNow)
+            return guardado.Valor;
+
+        using var solicitud = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{configuracion.TigoUrlBase}/oauth/client_credential/accesstoken?grant_type=client_credentials");
+        solicitud.Headers.Authorization = new AuthenticationHeaderValue("Basic", configuracion.TigoAutenticacion);
+
+        using var respuesta = await http.SendAsync(solicitud);
+        var contenido = await respuesta.Content.ReadAsStringAsync();
+        if (!respuesta.IsSuccessStatusCode)
+            throw new HttpRequestException($"Tigo no entregó el token ({(int)respuesta.StatusCode}): {contenido}");
+
+        using var json = JsonDocument.Parse(contenido);
+        var valor = json.RootElement.GetProperty("access_token").GetString()
+            ?? throw new HttpRequestException("Tigo respondió sin access_token.");
+
+        // Apigee manda expires_in como texto ("3599"); se renueva un minuto antes de que venza.
+        if (json.RootElement.TryGetProperty("expires_in", out var expira)
+            && int.TryParse(expira.ToString(), out var segundos) && segundos > 60)
+            tokenTigo = (valor, DateTimeOffset.UtcNow.AddSeconds(segundos - 60));
+
+        return valor;
+    }
+    //[FIN][29/10/2026][Rodriale][SMS por Tigo]
 }
 //[FIN][25/10/2026][Rodriale][Avisos de citas por WhatsApp con la Cloud API de Meta]

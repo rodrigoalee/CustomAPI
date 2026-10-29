@@ -157,7 +157,11 @@ namespace CustomCore.API.Servicios
                         .ToList(),
                     o.CitaId,
                     o.MotivoIngreso,
-                    o.MecanicoAsignadoId))
+                    o.MecanicoAsignadoId,
+                    o.Fotos
+                        .OrderBy(f => f.FechaSubida)
+                        .Select(f => new FotoOrdenDto(f.IdFotoOrden, f.Url, f.Descripcion, f.FechaSubida))
+                        .ToList()))
                 .FirstOrDefaultAsync(cancellationToken);
         }
         //[FIN][31/8/2026][Rodriale][Detalle completo en una sola consulta]
@@ -361,6 +365,67 @@ namespace CustomCore.API.Servicios
             return true;
         }, cancellationToken);
         //[FIN][25/10/2026][Rodriale][Solo el diagnóstico]
+
+        //[INICIO][29/10/2026][Rodriale][Fotos del diagnóstico: mismas reglas que el texto, la orden no puede estar facturada]
+        private const int MaximoFotosPorOrden = 20;
+
+        public Task<int?> RegistrarFotoAsync(
+            int ordenId,
+            RegistrarFotoOrdenRequest request,
+            int usuarioId,
+            CancellationToken cancellationToken)
+            => db.EjecutarUnidadAuditadaAsync<int?>(async () =>
+        {
+            // Solo se aceptan archivos de Vercel Blob: así nadie registra una URL externa que el cliente terminaría abriendo.
+            if (!Uri.TryCreate(request.Url, UriKind.Absolute, out var url)
+                || url.Scheme != Uri.UriSchemeHttps
+                || !url.Host.EndsWith(".public.blob.vercel-storage.com", StringComparison.OrdinalIgnoreCase))
+                throw new SolicitudInvalidaException("La foto debe estar guardada en el almacenamiento del taller.");
+
+            await db.BloquearFilaAsync<OrdenTrabajoEncabezado>(ordenId, cancellationToken);
+
+            if (await ExisteYNoEstaFacturadaAsync(ordenId, cancellationToken) is null)
+                return null;
+
+            if (await db.FotosOrden.CountAsync(f => f.OrdenTrabajoId == ordenId, cancellationToken) >= MaximoFotosPorOrden)
+                throw new ConflictoNegocioException($"La orden ya tiene {MaximoFotosPorOrden} fotos; quita alguna antes de subir otra.");
+
+            var foto = new FotoOrden
+            {
+                OrdenTrabajoId = ordenId,
+                Url = request.Url,
+                Descripcion = string.IsNullOrWhiteSpace(request.Descripcion) ? null : request.Descripcion.Trim(),
+                FechaSubida = DateTimeOffset.UtcNow,
+                UsuarioSubeId = usuarioId
+            };
+
+            db.FotosOrden.Add(foto);
+            await db.SaveChangesAsync(cancellationToken);
+
+            return foto.IdFotoOrden;
+        }, cancellationToken);
+
+        // Devuelve la URL de la foto quitada para que el front borre ese archivo y no uno que le mande el navegador.
+        public Task<string?> EliminarFotoAsync(
+            int ordenId,
+            int fotoId,
+            CancellationToken cancellationToken)
+            => db.EjecutarUnidadAuditadaAsync<string?>(async () =>
+        {
+            await db.BloquearFilaAsync<OrdenTrabajoEncabezado>(ordenId, cancellationToken);
+
+            if (await ExisteYNoEstaFacturadaAsync(ordenId, cancellationToken) is null)
+                return null;
+
+            var fotos = db.FotosOrden.Where(f => f.IdFotoOrden == fotoId && f.OrdenTrabajoId == ordenId);
+            var url = await fotos.Select(f => f.Url).FirstOrDefaultAsync(cancellationToken);
+            if (url is null)
+                return null;
+
+            await fotos.EliminarAuditadoAsync(db, fotoId, cancellationToken);
+            return url;
+        }, cancellationToken);
+        //[FIN][29/10/2026][Rodriale][Fotos del diagnóstico]
 
         //[INICIO][25/10/2026][Rodriale][Mecánicos de la sede con sus órdenes activas: disponibles primero, luego los menos cargados]
         public async Task<IReadOnlyList<MecanicoDisponibleDto>> ObtenerMecanicosAsync(

@@ -70,9 +70,24 @@ namespace CustomCore.API.Dtos
         //[INICIO][25/10/2026][Rodriale][Cita de origen, motivo de recepción e id del mecánico para reasignar]
         int? CitaId,
         string? MotivoIngreso,
-        int? MecanicoAsignadoId);
+        int? MecanicoAsignadoId,
         //[FIN][25/10/2026][Rodriale][Cita de origen, motivo de recepción e id del mecánico]
+        //[INICIO][29/10/2026][Rodriale][Fotos del diagnóstico]
+        IReadOnlyList<FotoOrdenDto> Fotos);
+        //[FIN][29/10/2026][Rodriale][Fotos del diagnóstico]
     //[FIN][31/8/2026][Rodriale][Vista completa de la orden]
+
+    //[INICIO][29/10/2026][Rodriale][Foto del diagnóstico; el front la sube a Vercel Blob y aquí registra la URL]
+    public record FotoOrdenDto(
+        int IdFoto,
+        string Url,
+        string? Descripcion,
+        DateTimeOffset FechaSubida);
+
+    public record RegistrarFotoOrdenRequest(
+        [Required, MaxLength(500)] string Url,
+        [MaxLength(200)] string? Descripcion);
+    //[FIN][29/10/2026][Rodriale][Foto del diagnóstico]
 
     //[INICIO][31/8/2026][Rodriale][Cada línea del trabajo; TipoLinea le ahorra al front tener que adivinar si es repuesto o mano de obra]
     public record LineaOrdenDto(
